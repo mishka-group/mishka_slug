@@ -36,7 +36,8 @@ defmodule MishkaSlug.CompatCase do
     quote bind_quoted: [cases: cases], unquote: false do
       for {compat_case, index} <- Enum.with_index(cases) do
         [input, opts, original, ours, why | marks] = Tuple.to_list(compat_case)
-        @tag known_bug: marks == [:known_bug]
+        if marks == [:known_bug], do: Module.put_attribute(__MODULE__, :tag, :known_bug)
+
         test "#{index}: #{inspect(input)} #{inspect(opts)}" do
           MishkaSlug.CompatCase.check(
             unquote(input),
