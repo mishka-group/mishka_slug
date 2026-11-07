@@ -135,12 +135,15 @@ defmodule MishkaSlug do
     "sr" => %{"đ" => "dj"},
     "bs" => %{"đ" => "dj"}
   }
-  # Workaround for OTP's NFC (`:unicode.characters_to_nfc_binary`, `String.normalize(:nfc)`, seen on
+  # Workaround for OTP's NFC and NFKC (`:unicode.characters_to_nfc_binary`, `String.normalize/2`, seen on
   # OTP 29): it composes per grapheme cluster and only recomposes Hangul when the cluster starts with
   # a leading jamo, so a prepend sign before Korean jamo (U+0600, U+0D4E, U+113D1) leaves the syllable
   # decomposed ("\u{113D1}\u{1109}\u{1162}" stays 3 code points, not "\u{113D1}\u{C0C8}"). This composes
-  # the leftover jamo. Korean only, other scripts compose correctly. Fixed upstream
-  # (https://github.com/erlang/otp/issues/11889): remove once the lib requires an OTP with the fix.
+  # the leftover jamo. It also composes an LV syllable with U+11A7, an archaic vowel and not a trailing
+  # consonant, and so drops it ("\u{B0EC}\u{11A7}" gives "\u{B0EC}"), so each run between two U+11A7 is
+  # normalized alone. Korean only, other scripts compose correctly. Fixed upstream
+  # (https://github.com/erlang/otp/issues/11889, https://github.com/erlang/otp/pull/11898): remove
+  # once the lib requires an OTP with the fix.
   @jamo ~r/[\x{1100}-\x{1112}][\x{1161}-\x{1175}][\x{11A8}-\x{11C2}]?|[\x{AC00}-\x{D7A3}][\x{11A8}-\x{11C2}]/u
 
   @digit_zeros for(cp <- 0..0x10FFFF, cp not in 0xD800..0xDFFF, into: "", do: <<cp::utf8>>)
@@ -194,11 +197,11 @@ defmodule MishkaSlug do
 
   defp clean(text, opts) do
     text
-    |> String.normalize(:nfkc)
+    |> normalize(:nfkc)
     |> zwnj(opts[:zwnj])
     |> String.replace(@whitespace, " ")
     |> lowercase(language(opts))
-    |> String.normalize(:nfkc)
+    |> normalize(:nfkc)
     |> String.replace(@invisible, "")
     |> fold(fold?(opts))
     |> String.replace(@optional_marks, "")
@@ -238,8 +241,14 @@ defmodule MishkaSlug do
 
   defp nfc(text) do
     text
-    |> String.normalize(:nfc)
+    |> normalize(:nfc)
     |> String.replace(@jamo, &compose_jamo/1)
+  end
+
+  defp normalize(text, form) do
+    text
+    |> String.split("\u{11A7}")
+    |> Enum.map_join("\u{11A7}", &String.normalize(&1, form))
   end
 
   defp compose_jamo(<<lead::utf8, vowel::utf8, rest::binary>>) when lead in 0x1100..0x1112,
