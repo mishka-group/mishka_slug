@@ -48,6 +48,7 @@ defmodule MishkaSlug.MixProject do
       # Only for `MishkaSlug.Change`, which is compiled when the host has Ash.
       {:ash, "~> 3.37", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
+      {:sobelow, "~> 0.18", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
       {:jump_credo_checks, "~> 0.7", only: [:dev, :test], runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
@@ -85,6 +86,7 @@ defmodule MishkaSlug.MixProject do
         "compile --warnings-as-errors",
         "format --check-formatted",
         "credo --strict",
+        "sobelow --config",
         "deps.audit",
         "dialyzer",
         "ex_dna --max-clones 0",
