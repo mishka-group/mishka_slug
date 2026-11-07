@@ -36,6 +36,12 @@ defmodule MishkaSlug.MessagesTest do
     assert error.message == Messages.error(:empty)
   end
 
+  test "the change tells a title in a disallowed script from a title without letters" do
+    assert {:error, %Ash.Error.Invalid{errors: [error]}} = create(%{title: "价格"})
+    assert error.message == Messages.error(:no_allowed_script)
+    refute error.message == Messages.error(:empty)
+  end
+
   test "an unknown locale code is bound into the message" do
     assert Messages.error({:unknown_locale, "zz"}) =~ "zz"
   end

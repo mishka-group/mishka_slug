@@ -106,7 +106,12 @@ defmodule MishkaSlug do
   alias MishkaSlug.{Options, Scripts}
 
   @typedoc "Why no slug could be made."
-  @type reason :: :empty | :invalid_utf8 | :mixed_scripts | {:unknown_locale, String.t()}
+  @type reason ::
+          :empty
+          | :no_allowed_script
+          | :invalid_utf8
+          | :mixed_scripts
+          | {:unknown_locale, String.t()}
 
   @persian_family ~w(fa ur ckb)
 
@@ -117,6 +122,7 @@ defmodule MishkaSlug do
   @digit ~r/\p{Nd}/u
   @latin ~r/\p{sc=Latin}\p{M}*/u
   @mark ~r/\p{M}/u
+  @alphanumeric ~r/[\p{L}\p{Nd}]/u
   @catalan_dot ~r/l\x{00B7}(?=l)/u
 
   @latin_letters %{
@@ -163,8 +169,9 @@ defmodule MishkaSlug do
   @doc """
   Makes a slug from `text`.
 
-  Returns `{:ok, slug}`, or `{:error, reason}` when nothing is left (`:empty`), the text is not
-  UTF-8 (`:invalid_utf8`), a word mixes scripts under `mixed_scripts: :reject`, or a locale is not
+  Returns `{:ok, slug}`, or `{:error, reason}` when nothing is left (`:empty`), the text had
+  letters or digits but none is in a script of `:locales` (`:no_allowed_script`, e.g. Persian
+  text with `locales: ["en"]`), the text is not UTF-8 (`:invalid_utf8`), a word mixes scripts under `mixed_scripts: :reject`, or a locale is not
   known (`{:unknown_locale, code}`). Invalid options raise `ArgumentError`.
 
       iex> MishkaSlug.slugify("كتاب يك ۱۲۳", language: "fa", digits: :ascii)
@@ -172,6 +179,12 @@ defmodule MishkaSlug do
 
       iex> MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa"])
       {:ok, "آموزش-react-در-۱۰-دقیقه"}
+
+      iex> MishkaSlug.slugify("قیمت", locales: ["en"])
+      {:error, :no_allowed_script}
+
+      iex> MishkaSlug.slugify("!!!", locales: ["en"])
+      {:error, :empty}
   """
   @spec slugify(String.t(), keyword()) :: {:ok, String.t()} | {:error, reason()}
   def slugify(text, opts \\ []) when is_binary(text) do
@@ -311,13 +324,24 @@ defmodule MishkaSlug do
   end
 
   defp split(words, allowed, opts) do
-    Enum.reduce_while(words, {:ok, []}, fn word, {:ok, acc} ->
+    words
+    |> Enum.reduce_while({:ok, []}, fn word, {:ok, acc} ->
       case Scripts.split(word, allowed, opts[:mixed_scripts]) do
         {:ok, parts} -> {:cont, {:ok, acc ++ Enum.map(parts, &trim(&1, opts))}}
         error -> {:halt, error}
       end
     end)
+    |> no_allowed_script(words)
   end
+
+  defp no_allowed_script({:ok, []}, words),
+    do:
+      if(Enum.any?(words, &(&1 =~ @alphanumeric)),
+        do: {:error, :no_allowed_script},
+        else: {:ok, []}
+      )
+
+  defp no_allowed_script(result, _words), do: result
 
   defp trim(word, opts), do: trim(word, opts[:trim_kept], opts[:keep])
 

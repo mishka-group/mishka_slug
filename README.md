@@ -64,6 +64,9 @@ MishkaSlug.slugify("كتاب يك", language: "fa")
 MishkaSlug.slugify("😀🚀")
 #=> {:error, :empty}
 
+MishkaSlug.slugify("قیمت", locales: ["en"])
+#=> {:error, :no_allowed_script}
+
 MishkaSlug.slugify!("Привет, мир!")
 #=> "привет-мир"
 ```

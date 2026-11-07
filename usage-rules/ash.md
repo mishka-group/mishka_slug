@@ -42,7 +42,7 @@ Every `MishkaSlug.slugify/2` option is accepted as it is. These are the change's
 ## What the change does
 
 - It reads `:from` from the action's arguments or changes. When it is not there, the change does nothing, so an update that does not touch the title keeps its slug.
-- A value that is not a string, or a title that gives no slug (`:empty`, `:mixed_scripts` and the rest), is a changeset error on `:from`. The slug attribute is never set to `nil` or `""`.
+- A value that is not a string, or a title that gives no slug (`:empty`, `:no_allowed_script`, `:mixed_scripts` and the rest), is a changeset error on `:from`. The slug attribute is never set to `nil` or `""`.
 - Error texts go through Gettext in the process locale (see the configuration sub-rules).
 - `:max_length` comes from the `max_length` constraint of the `:into` attribute unless you pass it.
 - `ci_string` attributes work as `:from`.

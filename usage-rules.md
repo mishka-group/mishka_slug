@@ -37,6 +37,7 @@ MishkaSlug.slugify!("Привет, мир!")
 | Result | When |
 |---|---|
 | `{:error, :empty}` | nothing is left: `""`, `"😀🚀"`, `"---"` |
+| `{:error, :no_allowed_script}` | the text has letters or digits, but none is in a script of `:locales`: `"قیمت"` with `locales: ["en"]` |
 | `{:error, :invalid_utf8}` | the binary is not UTF-8 |
 | `{:error, :mixed_scripts}` | a word mixes scripts and `mixed_scripts: :reject` is set |
 | `{:error, {:unknown_locale, "xx"}}` | a code in `:locales` is not known |
@@ -51,7 +52,7 @@ case MishkaSlug.slugify(title, locales: ["fa", "en"]) do
 end
 ```
 
-`:empty` is the usual one. Ask the user for another title, or build a slug from an id (`"post-" <> id`). `MishkaSlug.Messages.error/1` turns any reason into a translated sentence for a form (see the configuration sub-rules).
+`:empty` is the usual one. `:no_allowed_script` means the text has letters, just not in a script the site allows: tell the user to write with the site's languages (for example Latin letters), not that the text is blank. Ask the user for another title, or build a slug from an id (`"post-" <> id`). `MishkaSlug.Messages.error/1` turns any reason into a translated sentence for a form (see the configuration sub-rules).
 
 ## Options
 

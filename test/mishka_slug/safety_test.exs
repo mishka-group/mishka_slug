@@ -40,6 +40,16 @@ defmodule MishkaSlug.SafetyTest do
     assert {:error, :empty} = MishkaSlug.slugify("")
   end
 
+  test "text whose letters are all outside the allowed scripts is told apart from empty text" do
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("قیمت", locales: ["en"])
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("قیمت 价格", locales: ["en"])
+    assert {:error, :empty} = MishkaSlug.slugify("!!!", locales: ["en"])
+    assert {:error, :empty} = MishkaSlug.slugify("😀", locales: ["en"])
+    assert {:ok, "قیمت-abc"} = MishkaSlug.slugify("قیمت abc", locales: ["fa"])
+    assert {:ok, "abc"} = MishkaSlug.slugify("قیمت abc", locales: ["en"])
+    assert {:ok, "کتاب"} = MishkaSlug.slugify("کتاب", locales: ["fa"])
+  end
+
   test "text that is not UTF-8 is refused" do
     assert {:error, :invalid_utf8} = MishkaSlug.slugify(<<255, 254>>)
   end
