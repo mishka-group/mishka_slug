@@ -40,9 +40,17 @@ jobs:
       # the packages in the log. Both exit non-zero while a finding is open.
       - run: mix hex.audit --format sarif --output hex-audit.sarif || mix hex.audit
 
+      # A private repository has no code scanning, so the upload starts once the repository is
+      # public. The visibility comes from the API because a scheduled run's event has no repository.
+      - id: visibility
+        if: always()
+        run: echo "private=$(gh api "repos/$GITHUB_REPOSITORY" --jq .private)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
       # A pull request from a fork gets a read-only token and cannot upload.
       - uses: github/codeql-action/upload-sarif@v4
-        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        if: always() && steps.visibility.outputs.private == 'false' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         with:
           sarif_file: hex-audit.sarif
           category: hex-audit
