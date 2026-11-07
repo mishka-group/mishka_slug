@@ -97,7 +97,8 @@ defmodule MishkaSlug do
   # OTP 29): it composes per grapheme cluster and only recomposes Hangul when the cluster starts with
   # a leading jamo, so a prepend sign before Korean jamo (U+0600, U+0D4E, U+113D1) leaves the syllable
   # decomposed ("\u{113D1}\u{1109}\u{1162}" stays 3 code points, not "\u{113D1}\u{C0C8}"). This composes
-  # the leftover jamo. Korean only, other scripts compose correctly. Remove once OTP fixes it.
+  # the leftover jamo. Korean only, other scripts compose correctly. Fixed upstream
+  # (https://github.com/erlang/otp/issues/11889): remove once the lib requires an OTP with the fix.
   @jamo ~r/[\x{1100}-\x{1112}][\x{1161}-\x{1175}][\x{11A8}-\x{11C2}]?|[\x{AC00}-\x{D7A3}][\x{11A8}-\x{11C2}]/u
 
   @digit_zeros for(cp <- 0..0x10FFFF, cp not in 0xD800..0xDFFF, into: "", do: <<cp::utf8>>)
