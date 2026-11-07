@@ -28,6 +28,7 @@ defmodule MishkaSlug.Test.Blog.Post do
     attribute :title, :ci_string, public?: true
     attribute :language, :string, public?: true, default: "fa"
     attribute :slug, :string, public?: true, constraints: [max_length: 20]
+    attribute :flag, :boolean, public?: true
   end
 
   actions do
@@ -47,6 +48,11 @@ defmodule MishkaSlug.Test.Blog.Post do
     create :create_with_slug do
       accept [:title, :slug]
       change {MishkaSlug.Change, from: :title, into: :slug, skip_if_present?: true}
+    end
+
+    create :create_from_flag do
+      accept [:flag]
+      change {MishkaSlug.Change, from: :flag, into: :slug}
     end
 
     update :update do
