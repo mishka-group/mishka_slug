@@ -9,8 +9,7 @@ defmodule MishkaSlug do
       default: nil,
       doc: """
       The language of the text, such as a page's `language` (`"fa"`, `"tr"`). It picks the
-      lowercasing rules (`tr` and `az` turn `I` into `ı`, `el` writes a final `ς`) and, for
-      `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`.
+      lowercasing rules (`tr` and `az` turn `I` into `ı`) and, for `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`.
       """
     ],
     locales: [
@@ -86,7 +85,8 @@ defmodule MishkaSlug do
   A slug is lowercase words joined by `-`. A word is a run of letters and decimal digits, with the
   combining marks that complete them (Hindi vowel signs and viramas, Thai tone marks). Everything
   else, from spaces and punctuation to emoji and `/ ? # % \\ :`, separates words. The result is
-  NFC, so a stored slug compares equal to a pasted one.
+  NFC, so a stored slug compares equal to a pasted one. A capital sigma that ends a Greek word
+  becomes `ς` (`ΟΔΟΣ` gives `οδος`) in every language but `tr` and `az`.
 
   ## Safety
 
@@ -195,8 +195,9 @@ defmodule MishkaSlug do
   defp zwnj(text, :separator), do: String.replace(text, "\u{200C}", " ")
 
   defp lowercase(text, language) when language in ["tr", "az"], do: String.downcase(text, :turkic)
-  defp lowercase(text, "el"), do: String.downcase(text, :greek)
-  defp lowercase(text, _language), do: text |> String.replace("İ", "i") |> String.downcase()
+
+  defp lowercase(text, _language),
+    do: text |> String.replace("İ", "i") |> String.downcase(:greek)
 
   defp fold?(opts) do
     case {opts[:language], Enum.map(opts[:locales], &Scripts.language/1)} do

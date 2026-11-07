@@ -50,7 +50,7 @@ MishkaSlug.slugify!("Привет, мир!")
 
 | Option | Default | What it does |
 |---|---|---|
-| `:language` | `nil` | The text's language. `tr` and `az` lowercase `I` to `ı`, `el` writes a final `ς`, and `fa`, `ur`, `ckb` fold Arabic `ي ى ك` to Persian `ی ک`. |
+| `:language` | `nil` | The text's language. `tr` and `az` lowercase `I` to `ı`, and `fa`, `ur`, `ckb` fold Arabic `ي ى ك` to Persian `ی ک`. |
 | `:locales` | `[]` | The site's languages, such as `["fa", "en"]`. Only their scripts, and Latin, are kept. `[]` keeps every script. |
 | `:mixed_scripts` | `:split` | A word that changes script (`pаypal` with a Cyrillic `а`): `:split` cuts it, `:reject` returns `{:error, :mixed_scripts}`. |
 | `:zwnj` | `:remove` | The Persian half-space: `:remove` glues the parts, `:separator` makes a word break. |

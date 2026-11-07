@@ -35,6 +35,8 @@ defmodule MishkaSlug.LanguagesTest do
     {"Turkish without a language", "İSTANBUL Işık", [], "istanbul-işık"},
     {"German", "Straße über Größe", [], "straße-über-größe"},
     {"Greek with its language", "ΟΔΟΣ Αθήνα", [language: "el"], "οδος-αθήνα"},
+    {"Greek without a language", "ΟΔΟΣ ΣΟΦΟΣ Σ", [], "οδος-σοφος-σ"},
+    {"Greek in an English page", "ΟΔΟΣ Street", [language: "en"], "οδος-street"},
     {"Fullwidth Latin and digits", "ＡＢＣ\u{3000}ｈｅｌｌｏ １２３", [], "abc-hello-123"},
     {"English apostrophes", "Conway's Law don’t", [], "conways-law-dont"},
     {"Han from Unicode extension B", "𠀀𠀁 x", [], "𠀀𠀁-x"}

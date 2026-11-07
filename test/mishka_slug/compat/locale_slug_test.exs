@@ -20,7 +20,6 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
   |---|---|
   | Letters outside ASCII | `locale_slug` romanises Latin, Cyrillic and Greek; we keep each script. |
   | Digits | `locale_slug` folds every digit to `0-9`; we keep digits as typed unless `digits: :ascii`. |
-  | Final sigma | `locale_slug` writes `ς` for a word-final capital sigma always; we need `language: "el"`. |
   """
 
   @romanised "locale_slug romanises this script to ASCII; we keep the script's own letters"
@@ -49,8 +48,7 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
     {"Καλημέρα", [], "kalimera", "καλημέρα", @romanised},
     {"Αλέξανδρος", [], "alexandros", "αλέξανδρος", @romanised},
     {"ΑΛΕΞΑΝΔΡΟΣ", [language: "el"], "alexandros", "αλεξανδρος", @romanised},
-    {"ΑΛΕΞΑΝΔΡΟΣ", [], "alexandros", "αλεξανδροσ",
-     "a word-final capital sigma becomes `ς` only with `language: \"el\"`"},
+    {"ΑΛΕΞΑΝΔΡΟΣ", [], "alexandros", "αλεξανδρος", @romanised},
     {"iPhone 15 Проблема", [], "iphone-15-problema", "iphone-15-проблема", @romanised},
     {"日本語 入門", [], "日本語-入門", "日本語-入門", nil},
     {"Цветокоррекция", [], "цветокоррекция", "цветокоррекция", nil},
