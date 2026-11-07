@@ -178,6 +178,20 @@ defmodule MishkaSlug.OptionsTest do
       assert {:ok, "end"} = MishkaSlug.slugify("end.", keep: ["."], trim_kept: true)
     end
 
+    test "true removes a kept character glued to a prepended sign and keeps the sign" do
+      opts = [keep: ["."], trim_kept: true]
+
+      for {title, slug} <- [
+            {"\u{0D4E}.", "\u{0D4E}"},
+            {"\u{0D4E}.\u{0D4E}.", "\u{0D4E}.\u{0D4E}"}
+          ] do
+        assert MishkaSlug.slugify(title, opts) == {:ok, slug}
+        assert MishkaSlug.slugify(slug, opts) == {:ok, slug}
+      end
+
+      assert {:ok, "\u{0D4E}."} = MishkaSlug.slugify("\u{0D4E}.", keep: ["."])
+    end
+
     test "must be a boolean" do
       assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", trim_kept: "yes") end
     end
