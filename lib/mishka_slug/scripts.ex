@@ -13,7 +13,9 @@ defmodule MishkaSlug.Scripts do
     appear in every language. A letter of any other script is dropped.
   - **One script per word.** A word that changes script, like `pаypal` with a Cyrillic `а`, is cut
     at the change or refused. Japanese (Han with Hiragana and Katakana), Korean (Han with Hangul)
-    and Chinese with Bopomofo are one family each, so they are never cut.
+    and Chinese with Bopomofo are one family each, so they are never cut. All the scripts of a
+    part must fit one family: `夏の幻ㄒㄧㄤ` is cut before the Bopomofo, because Han carries
+    Hiragana in from the start and no family holds Hiragana with Bopomofo.
 
   Digits, combining marks and letters that belong to no single script (such as the Japanese
   long-vowel mark `ー`) are neutral: they stay with the letters around them. A letter of a script
@@ -201,26 +203,28 @@ defmodule MishkaSlug.Scripts do
   end
 
   defp block(:neutral, _allowed), do: :neutral
-  defp block(script, :any), do: script
-  defp block(script, allowed), do: if(script in allowed, do: script, else: :blocked)
+  defp block(script, :any), do: [script]
+  defp block(script, allowed), do: if(script in allowed, do: [script], else: :blocked)
 
   defp join({:neutral, text}, [{:blocked, _} | _] = acc), do: [{:neutral, text} | acc]
-  defp join({:neutral, text}, [{script, part} | rest]), do: [{script, part <> text} | rest]
+  defp join({:neutral, text}, [{scripts, part} | rest]), do: [{scripts, part <> text} | rest]
   defp join({:blocked, text}, acc), do: [{:blocked, text} | acc]
-  defp join({script, text}, [{:neutral, part} | rest]), do: [{script, part <> text} | rest]
+  defp join({scripts, text}, [{:neutral, part} | rest]), do: [{scripts, part <> text} | rest]
 
-  defp join({script, text}, [{last, part} | rest] = acc) do
-    case family?(last, script) do
-      true -> [{script, part <> text} | rest]
-      false -> [{script, text} | acc]
+  defp join({[script], text}, [{seen, part} | rest] = acc) do
+    case family?(seen, script) do
+      true -> [{Enum.uniq([script | seen]), part <> text} | rest]
+      false -> [{[script], text} | acc]
     end
   end
 
   defp join(run, []), do: [run]
 
   defp family?(:blocked, _script), do: false
-  defp family?(same, same), do: true
-  defp family?(a, b), do: Enum.any?(@families, &(a in &1 and b in &1))
+  defp family?([script], script), do: true
+
+  defp family?(seen, script),
+    do: Enum.any?(@families, fn family -> Enum.all?([script | seen], &(&1 in family)) end)
 
   defp texts(parts), do: for({script, text} <- parts, script != :blocked, do: text)
 end

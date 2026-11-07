@@ -63,12 +63,11 @@ defmodule MishkaSlug.Compat.UnicodeSecurityTest do
      "digits of different systems are not different scripts; they stay as typed"},
     {"1١", [digits: :ascii], nil, "11", "`digits: :ascii` writes every digit system as 0-9"},
     {"夏の幻ㄒㄧㄤ", [], nil, "夏の幻-ㄒㄧㄤ",
-     "Hiragana and Bopomofo share no family, so the word is cut where Bopomofo starts",
-     :known_bug},
+     "Hiragana and Bopomofo share no family, so the word is cut where Bopomofo starts"},
     {"夏の幻ㄒㄧㄤ", [mixed_scripts: :reject], nil, :mixed_scripts,
-     "Hiragana and Bopomofo share no family, so the word is refused", :known_bug},
+     "Hiragana and Bopomofo share no family, so the word is refused"},
     {"한漢の", [], nil, "한漢-の",
-     "Hangul and Hiragana share no family, so the word is cut where Hiragana starts", :known_bug}
+     "Hangul and Hiragana share no family, so the word is cut where Hiragana starts"}
   ]
 
   compat_cases(@cases)

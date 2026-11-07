@@ -15,8 +15,7 @@ defmodule MishkaSlug.CompatCase do
   - `why` is `nil` when both agree, and one short sentence saying why we differ otherwise.
 
   Every case checks our result, that slugging our slug again gives the same slug, and that `why`
-  is set exactly when `original` and `ours` differ. A case ending in `:known_bug` is excluded from
-  the run: `ours` is the result it should have, not what the code returns today.
+  is set exactly when `original` and `ours` differ.
   """
 
   import ExUnit.Assertions
@@ -35,8 +34,7 @@ defmodule MishkaSlug.CompatCase do
   defmacro compat_cases(cases) do
     quote bind_quoted: [cases: cases], unquote: false do
       for {compat_case, index} <- Enum.with_index(cases) do
-        [input, opts, original, ours, why | marks] = Tuple.to_list(compat_case)
-        if marks == [:known_bug], do: Module.put_attribute(__MODULE__, :tag, :known_bug)
+        {input, opts, original, ours, why} = compat_case
 
         test "#{index}: #{inspect(input)} #{inspect(opts)}" do
           MishkaSlug.CompatCase.check(
