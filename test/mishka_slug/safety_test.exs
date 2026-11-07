@@ -48,6 +48,7 @@ defmodule MishkaSlug.SafetyTest do
     assert {:ok, "قیمت-abc"} = MishkaSlug.slugify("قیمت abc", locales: ["fa"])
     assert {:ok, "abc"} = MishkaSlug.slugify("قیمت abc", locales: ["en"])
     assert {:ok, "کتاب"} = MishkaSlug.slugify("کتاب", locales: ["fa"])
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("۱۴۰۳", locales: ["en"])
   end
 
   test "text that is not UTF-8 is refused" do

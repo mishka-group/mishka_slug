@@ -38,5 +38,5 @@ msgstr ""
 
 #: lib/mishka_slug/messages.ex:41
 #, elixir-autogen, elixir-format
-msgid "uses letters that the site languages do not allow in a slug"
+msgid "uses letters or digits that the site languages do not allow in a slug"
 msgstr ""

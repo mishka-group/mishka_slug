@@ -64,7 +64,7 @@ All options are optional. An unknown option, or a value outside the accepted one
 | `:locales` | `[]` | The site has known languages. Only their scripts, and Latin, are kept. `[]` keeps every script. |
 | `:mixed_scripts` | `:split` | `:reject` when a word that mixes scripts (a homoglyph attempt) must be refused, not cut. |
 | `:zwnj` | `:remove` | `:separator` when the Persian half-space should be a word break. |
-| `:digits` | `:keep` | `:ascii` when `۱۴۰۳` and `٢٠٢٥` must become `1403` and `2025`. |
+| `:digits` | `:keep` | `:ascii` when `۱۴۰۳` and `٢٠٢٥` must become `1403` and `2025`. With `:keep`, `:locales` drops a digit of a script it does not allow, like a letter. |
 | `:keep` | `["_"]` | A list of `"."`, `"_"`, `"~"` kept inside a word. It replaces the default. |
 | `:latin` | `:ascii` | `:keep` to leave accents as typed (`café`). |
 | `:trim_kept` | `false` | `true` to remove kept characters at a word's ends (`__init__` to `init`). The default keeps them like WordPress. |
@@ -90,6 +90,12 @@ MishkaSlug.slugify("كتاب جديد", language: "ar")
 # Digits
 MishkaSlug.slugify("سنة ٢٠٢٥ كتاب", digits: :ascii)
 #=> {:ok, "سنة-2025-كتاب"}
+
+# A digit of a script outside the locales is dropped, unless :ascii writes it as 0-9 first
+MishkaSlug.slugify("سال ۱۴۰۳", locales: ["en"])
+#=> {:error, :no_allowed_script}
+MishkaSlug.slugify("سال ۱۴۰۳", locales: ["en"], digits: :ascii)
+#=> {:ok, "1403"}
 
 # Site languages: Persian and English stay, other scripts are dropped
 MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa", "en"])

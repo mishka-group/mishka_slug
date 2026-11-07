@@ -60,8 +60,8 @@ defmodule MishkaSlug do
       `de`, `da`, `ca`, `sr` and `bs` picks how `latin: :ascii` spells their letters.
 
     * `:locales` - `[String.t()]`, default `[]`. The site's languages (`["fa", "en"]`). Only
-      letters of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps every
-      script. Without a `:language`, a Persian-family locale without `ar` turns on the Persian
+      letters and digits of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps
+      every script. Without a `:language`, a Persian-family locale without `ar` turns on the Persian
       fold.
 
     * `:mixed_scripts` - `:split | :reject`, default `:split`. What happens to a word that
@@ -73,7 +73,8 @@ defmodule MishkaSlug do
       (`قیمت-گذاری`).
 
     * `:digits` - `:keep | :ascii`, default `:keep`. `:keep` leaves digits as typed (`۱۴۰۳`);
-      `:ascii` writes every decimal digit as `0-9` (`1403`).
+      `:ascii` writes every decimal digit as `0-9` (`1403`). With `:keep`, a digit of a script
+      outside `:locales` is dropped like a letter; `:ascii` writes it as `0-9` first, so it stays.
 
     * `:latin` - `:ascii | :keep`, default `:ascii`. What happens to accented Latin letters.
       `:ascii` writes them as WordPress's `remove_accents` does: a letter is decomposed and its

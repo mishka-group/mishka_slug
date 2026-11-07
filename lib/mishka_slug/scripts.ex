@@ -19,9 +19,11 @@ defmodule MishkaSlug.Scripts do
 
   A combining mark belongs to the letter before it and is dropped with it, so a dropped letter
   never leaves its mark behind. A mark of one script never completes a letter of another: a
-  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Digits and
-  letters that belong to no single script (such as the Japanese long-vowel mark `ー`) are
-  neutral: they stay with the letters around them. A letter of a script this module does not know
+  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Characters
+  that belong to no single script (ASCII digits, the Japanese long-vowel mark `ー`) are neutral:
+  they stay with the letters around them. A digit of a script (Persian `۱۴۰۳`, Devanagari `१२`)
+  follows the allow-list like a letter, so `locales: ["en"]` drops it, but it never makes a word
+  mixed: `iphone۱۵` stays one word. `digits: :ascii` writes it as `0-9` first, so it is kept. A letter of a script this module does not know
   by name (for example Tibetan) counts as `:other`.
   """
 
@@ -60,17 +62,25 @@ defmodule MishkaSlug.Scripts do
 
   # A mark of a script runs with a letter of that script; one that follows a letter of another
   # script (Khudawadi `U+112E3` after `a`) starts the `:stray` group and is dropped.
+  # A digit of a script (Persian `۱`, Devanagari `१`) is its own run, so it never joins a letter
+  # run, and takes its inherited marks with it: `[^\\P{sc=X}\\p{Nd}]` is a letter of X,
+  # `[^\\P{sc=X}\\P{Nd}]` a digit of X.
   @runs Regex.compile!(
-          "([\\p{Nd}\\p{sc=Common}\\p{sc=Inherited}]+)|(\\p{M}+)|" <>
+          "([\\p{sc=Common}\\p{sc=Inherited}]+)|(\\p{M}+)|" <>
             Enum.map_join(@scripts, "|", fn script ->
               name = Map.fetch!(@pcre_names, script)
-              "(\\p{sc=#{name}}[\\p{sc=#{name}}\\p{sc=Inherited}]*)"
+              letter = "[^\\P{sc=#{name}}\\p{Nd}]"
+              digit = "[^\\P{sc=#{name}}\\P{Nd}]"
+
+              "(#{letter}(?:#{letter}|\\p{sc=Inherited})*)|(#{digit}(?:#{digit}|\\p{sc=Inherited})*)"
             end) <>
+            "|(\\p{Nd}(?:(?!#{@known})\\p{Nd}|\\p{sc=Inherited})*)" <>
             "|(\\p{L}(?:(?!#{@known})\\p{M})*)",
           "u"
         )
 
-  @groups [:neutral, :stray | @scripts] ++ [:other]
+  @groups [:neutral, :stray | Enum.flat_map(@scripts, &[&1, {:digits, &1}])] ++
+            [{:digits, :other}, :other]
 
   @families [[:han, :hiragana, :katakana], [:han, :hangul], [:han, :bopomofo]]
 
@@ -214,6 +224,11 @@ defmodule MishkaSlug.Scripts do
   end
 
   defp block(:neutral, _allowed), do: :neutral
+  defp block({:digits, _script}, :any), do: :neutral
+
+  defp block({:digits, script}, allowed),
+    do: if(script in allowed, do: :neutral, else: :blocked)
+
   defp block(script, :any), do: [script]
   defp block(script, allowed), do: if(script in allowed, do: [script], else: :blocked)
 

@@ -29,7 +29,7 @@ defmodule MishkaSlug.Messages do
       "has no letters or digits to make a slug from"
 
       iex> MishkaSlug.Messages.error(:no_allowed_script)
-      "uses letters that the site languages do not allow in a slug"
+      "uses letters or digits that the site languages do not allow in a slug"
   """
   @spec error(MishkaSlug.reason()) :: String.t()
   def error(:empty),
@@ -40,7 +40,7 @@ defmodule MishkaSlug.Messages do
       translate(
         dgettext_noop(
           "mishka_slug",
-          "uses letters that the site languages do not allow in a slug"
+          "uses letters or digits that the site languages do not allow in a slug"
         )
       )
 

@@ -22,7 +22,7 @@ priv/gettext/fa/LC_MESSAGES/mishka_slug.po
 The messages are:
 
 - `has no letters or digits to make a slug from` (`:empty`)
-- `uses letters that the site languages do not allow in a slug` (`:no_allowed_script`)
+- `uses letters or digits that the site languages do not allow in a slug` (`:no_allowed_script`)
 - `mixes writing systems inside one word` (`:mixed_scripts`)
 - `is not valid UTF-8 text` (`:invalid_utf8`)
 - `uses a site language the slug does not know: %{code}` (`{:unknown_locale, code}`)

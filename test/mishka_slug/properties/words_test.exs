@@ -44,7 +44,7 @@ defmodule MishkaSlug.Properties.WordsTest do
     Regex.compile!("\\A[\\p{sc=Common}\\p{sc=Inherited}#{Enum.join(names)}]\\z", "u")
   end
 
-  property "locales keep only letters of their scripts and Latin" do
+  property "locales keep only letters and digits of their scripts and Latin" do
     check all(
             text <- SlugGen.text(),
             opts <- SlugGen.options(locales: :some),
@@ -56,7 +56,7 @@ defmodule MishkaSlug.Properties.WordsTest do
         slug
         |> String.graphemes()
         |> Enum.flat_map(&String.codepoints/1)
-        |> Enum.filter(&(&1 =~ ~r/\p{L}/u))
+        |> Enum.filter(&(&1 =~ ~r/[\p{L}\p{Nd}]/u))
         |> Enum.each(
           &assert(&1 =~ allowed, "#{inspect(&1)} is outside #{inspect(opts[:locales])}")
         )
