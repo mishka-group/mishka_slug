@@ -19,9 +19,10 @@ defmodule MishkaSlug.Scripts do
 
   A combining mark belongs to the letter before it and is dropped with it, so a dropped letter
   never leaves its mark behind. A mark of one script never completes a letter of another: a
-  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Digits and letters that belong to no single script (such as the
-  Japanese long-vowel mark `ー`) are neutral: they stay with the letters around them. A letter of a script
-  this module does not know by name (for example Tibetan) counts as `:other`.
+  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Digits and
+  letters that belong to no single script (such as the Japanese long-vowel mark `ー`) are
+  neutral: they stay with the letters around them. A letter of a script this module does not know
+  by name (for example Tibetan) counts as `:other`.
   """
 
   @pcre_names %{
