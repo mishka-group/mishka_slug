@@ -45,6 +45,7 @@ defmodule MishkaSlug.MixProject do
   defp deps do
     [
       {:guarded_struct, "~> 0.1"},
+      {:gettext, "~> 1.0"},
       # Only for `MishkaSlug.Change`, which is compiled when the host has Ash.
       {:ash, "~> 3.37", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
@@ -67,7 +68,7 @@ defmodule MishkaSlug.MixProject do
     [
       licenses: ["Apache-2.0"],
       maintainers: ["Shahryar Tavakkoli"],
-      files: ~w(lib .formatter.exs mix.exs LICENSE README* CHANGELOG* SECURITY*),
+      files: ~w(lib priv .formatter.exs mix.exs LICENSE README* CHANGELOG* SECURITY*),
       links: %{
         "Mishka CMS" => "https://mishka.tools/cms",
         "Discord" => "https://discord.gg/m4zdCJjDJg",

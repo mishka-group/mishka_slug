@@ -58,7 +58,8 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
     The change reads `:from` from the action's arguments or changes and does nothing when it is
     not there. A value that is not a string, or a title that gives no slug, is a changeset error on
-    `:from`; the slug attribute is never set to `nil` or `""`. When `:max_length` is not given, the
+    `:from`; the slug attribute is never set to `nil` or `""`. The error texts go through Gettext
+    (see `MishkaSlug.Messages`) in the locale of the calling process. When `:max_length` is not given, the
     `max_length` constraint of the `:into` attribute is used.
 
     ## Options
@@ -89,6 +90,7 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
     alias Ash.Changeset
     alias MishkaSlug.Change.Options, as: ChangeOptions
+    alias MishkaSlug.Messages
     alias MishkaSlug.Options
 
     @own_keys [:from, :into, :skip_if_present?, :language, :locales]
@@ -114,10 +116,10 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
         Changeset.force_change_attribute(changeset, into, slug)
       else
         {:ok, _value} ->
-          Changeset.add_error(changeset, field: from, message: "is not a string value")
+          Changeset.add_error(changeset, field: from, message: Messages.not_a_string())
 
         {:error, reason} ->
-          Changeset.add_error(changeset, field: from, message: message(reason))
+          Changeset.add_error(changeset, field: from, message: Messages.error(reason))
 
         _skip ->
           changeset
@@ -191,12 +193,5 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
         nil -> nil
       end
     end
-
-    defp message(:empty), do: "has no letters or digits to make a slug from"
-    defp message(:mixed_scripts), do: "mixes writing systems inside one word"
-    defp message(:invalid_utf8), do: "is not valid UTF-8 text"
-
-    defp message({:unknown_locale, code}),
-      do: "uses a site language the slug does not know: #{code}"
   end
 end

@@ -14,6 +14,8 @@ path = [
   ".github/workflows/*.yml",
   "**/*.yml",
   "**/*.md",
+  "priv/**",
+  "test/support/gettext/**",
 ]
 SPDX-FileCopyrightText = "2026 Mishka Group contributors <https://github.com/mishka-group/mishka_slug/graphs/contributors>"
 SPDX-License-Identifier = "Apache-2.0"

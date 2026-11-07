@@ -1,0 +1,12 @@
+msgid ""
+msgstr ""
+"Language: fa\n"
+
+msgid "has no letters or digits to make a slug from"
+msgstr "xx: nothing to slug"
+
+msgid "is not a string value"
+msgstr "xx: not a string"
+
+msgid "uses a site language the slug does not know: %{code}"
+msgstr "xx: unknown language %{code}"
