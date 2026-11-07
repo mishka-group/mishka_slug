@@ -7,7 +7,8 @@ defmodule MishkaSlug.LanguagesTest do
 
   @moduledoc """
   Real titles in many scripts keep their own letters, lose only optional marks, and come back
-  unchanged when slugged again. Each row is `{case, title, options, slug}`.
+  unchanged when slugged again. Latin letters lose their accents unless `latin: :keep`. Each row
+  is `{case, title, options, slug}`.
   """
 
   @cases [
@@ -31,9 +32,23 @@ defmodule MishkaSlug.LanguagesTest do
     {"Russian", "Привет, мир! ЁЖ", [], "привет-мир-ёж"},
     {"Hindi with virama and vowel signs", "हिन्दी भाषा नमस्ते", [], "हिन्दी-भाषा-नमस्ते"},
     {"Thai with vowel and tone marks", "สวัสดีชาวโลก ไม่ใช่", [], "สวัสดีชาวโลก-ไม่ใช่"},
-    {"Turkish with its language", "İSTANBUL Işık ŞEKER", [language: "tr"], "istanbul-ışık-şeker"},
-    {"Turkish without a language", "İSTANBUL Işık", [], "istanbul-işık"},
-    {"German", "Straße über Größe", [], "straße-über-größe"},
+    {"Turkish with its language", "İSTANBUL Işık ŞEKER", [language: "tr"], "istanbul-isik-seker"},
+    {"Turkish with its language, accents kept", "İSTANBUL Işık ŞEKER",
+     [language: "tr", latin: :keep], "istanbul-ışık-şeker"},
+    {"Turkish without a language", "İSTANBUL Işık", [], "istanbul-isik"},
+    {"Turkish without a language, accents kept", "İSTANBUL Işık", [latin: :keep],
+     "istanbul-işık"},
+    {"German", "Straße über Größe", [], "strase-uber-grose"},
+    {"German with its language", "Straße über Größe", [language: "de"], "strasse-ueber-groesse"},
+    {"German, accents kept", "Straße über Größe", [latin: :keep], "straße-über-größe"},
+    {"Danish with its language", "Blåbær Ørsted", [language: "da"], "blaabaer-oersted"},
+    {"Catalan with its language", "Col·lecció paral·lela", [language: "ca"],
+     "colleccio-parallela"},
+    {"Serbian Latin with its language", "Đurđevdan", [language: "sr"], "djurdjevdan"},
+    {"Vietnamese", "Tiếng Việt có dấu", [], "tieng-viet-co-dau"},
+    {"Vietnamese, accents kept", "Tiếng Việt có dấu", [latin: :keep], "tiếng-việt-có-dấu"},
+    {"Polish", "Zażółć gęślą jaźń", [], "zazolc-gesla-jazn"},
+    {"Icelandic", "Þórður Ægir", [], "thordur-aegir"},
     {"Greek with its language", "ΟΔΟΣ Αθήνα", [language: "el"], "οδος-αθήνα"},
     {"Greek without a language", "ΟΔΟΣ ΣΟΦΟΣ Σ", [], "οδος-σοφος-σ"},
     {"Greek in an English page", "ΟΔΟΣ Street", [language: "en"], "οδος-street"},

@@ -26,7 +26,7 @@ defmodule MishkaSlug.OptionsTest do
 
     test "a region or script subtag counts as its language" do
       assert {:ok, "你好"} = MishkaSlug.slugify("你好", locales: ["zh-hans"])
-      assert {:ok, "olá"} = MishkaSlug.slugify("Olá", locales: ["pt-BR"])
+      assert {:ok, "olá"} = MishkaSlug.slugify("Olá", locales: ["pt-BR"], latin: :keep)
     end
 
     test "an unknown language is an error, not a silent allow-all" do
@@ -47,8 +47,40 @@ defmodule MishkaSlug.OptionsTest do
     end
 
     test "picks Turkish lowercasing only for Turkish text" do
-      assert {:ok, "ısık"} = MishkaSlug.slugify("ISIK", language: "tr")
-      assert {:ok, "isik"} = MishkaSlug.slugify("ISIK", language: "en")
+      assert {:ok, "ısık"} = MishkaSlug.slugify("ISIK", language: "tr", latin: :keep)
+      assert {:ok, "isik"} = MishkaSlug.slugify("ISIK", language: "en", latin: :keep)
+    end
+  end
+
+  describe ":latin" do
+    test ":ascii, the default, drops Latin accents like WordPress" do
+      assert {:ok, "cafe-creme"} = MishkaSlug.slugify("Café Crème")
+      assert {:ok, "naive-facade-angstrom"} = MishkaSlug.slugify("naïve façade Ångström")
+      assert {:ok, "strase-aeroskobing-oeuvre"} = MishkaSlug.slugify("Straße Ærøskøbing Œuvre")
+      assert {:ok, "isik"} = MishkaSlug.slugify("ISIK", language: "tr")
+    end
+
+    test ":ascii follows the language's own spelling" do
+      assert {:ok, "strasse-aerger"} = MishkaSlug.slugify("Straße Ärger", language: "de")
+      assert {:ok, "aeroe-aalborg"} = MishkaSlug.slugify("Ærø Ålborg", language: "da")
+      assert {:ok, "colleccio"} = MishkaSlug.slugify("Col·lecció", language: "ca")
+      assert {:ok, "djokovic"} = MishkaSlug.slugify("Đoković", language: "sr")
+      assert {:ok, "djokovic"} = MishkaSlug.slugify("Đoković", language: "bs")
+      assert {:ok, "dokovic"} = MishkaSlug.slugify("Đoković")
+    end
+
+    test ":ascii changes only Latin letters" do
+      assert {:ok, "αθήνα-ёж-שלום"} = MishkaSlug.slugify("Αθήνα Ёж שָׁלוֹם")
+      assert {:ok, "हिन्दी-cafe"} = MishkaSlug.slugify("हिन्दी café")
+    end
+
+    test ":keep leaves Latin letters as typed" do
+      assert {:ok, "café-crème"} = MishkaSlug.slugify("Café Crème", latin: :keep)
+      assert {:ok, "straße"} = MishkaSlug.slugify("Straße", language: "de", latin: :keep)
+    end
+
+    test "refuses any other value" do
+      assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", latin: :translit) end
     end
   end
 
@@ -102,6 +134,15 @@ defmodule MishkaSlug.OptionsTest do
   end
 
   describe ":keep" do
+    test "keeps `_` inside a word by default, like WordPress" do
+      assert {:ok, "snake_case_name"} = MishkaSlug.slugify("snake_case_name")
+      assert {:ok, "init-a_b-c"} = MishkaSlug.slugify("__init__ a_b.c")
+    end
+
+    test "an empty list makes `_` a word break" do
+      assert {:ok, "snake-case-name"} = MishkaSlug.slugify("snake_case_name", keep: [])
+    end
+
     test "keeps the listed characters inside a word but never at its ends" do
       assert {:ok, "v1.2"} = MishkaSlug.slugify("v1.2 .. ...", keep: ["."])
       assert {:ok, "end"} = MishkaSlug.slugify("end.", keep: ["."])

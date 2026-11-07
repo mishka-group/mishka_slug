@@ -115,6 +115,33 @@ defmodule MishkaSlug.Properties.OutputTest do
     end
   end
 
+  property "with latin: :ascii no Latin letter keeps an accent or an unspelled letter" do
+    check all(
+            text <- SlugGen.text(),
+            opts <- SlugGen.options(),
+            opts = Keyword.put(opts, :latin, :ascii),
+            max_runs: @runs
+          ) do
+      with {:ok, slug} <- slug(text, opts) do
+        refute slug =~ ~r/\p{sc=Latin}\p{M}/u
+        refute String.normalize(slug, :nfd) =~ ~r/\p{sc=Latin}\p{M}/u
+        refute String.contains?(slug, ~w(ß æ ð ø þ đ ħ ı ĸ ł ŋ œ ŧ ə))
+      end
+    end
+  end
+
+  property "latin only changes Latin letters: text without any slugs the same either way" do
+    check all(
+            text <- SlugGen.text(),
+            opts <- SlugGen.options(),
+            text = text |> String.normalize(:nfkc) |> String.replace(~r/\p{sc=Latin}/u, " "),
+            max_runs: @runs
+          ) do
+      assert slug(text, Keyword.put(opts, :latin, :ascii)) ==
+               slug(text, Keyword.put(opts, :latin, :keep))
+    end
+  end
+
   property "slugging is deterministic" do
     check all(text <- SlugGen.text(), opts <- SlugGen.options(), max_runs: @runs) do
       assert slug(text, opts) == slug(text, opts)

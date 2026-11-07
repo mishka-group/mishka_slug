@@ -15,12 +15,14 @@ defmodule MishkaSlug.Compat.SymfonyTest do
 
   | Difference | Why |
   |---|---|
-  | Accents and `ä`, `ғ` | The slugger writes ASCII, by locale (`ä` is `a`, or `ae` for `de`); we keep the letter. |
+  | Cyrillic `ғ` | The slugger writes every script as ASCII; we write only Latin as ASCII. |
+  | `latin: :keep` | The slugger always writes ASCII; `latin: :keep` keeps the accented letter. |
   | `@` with `en` | The `en` locale writes `@` as `at`; we treat it as a separator. |
   | Emoji | With `withEmoji` Symfony writes their names; we drop every emoji. |
   """
 
-  @ascii "the slugger writes ASCII; we keep the accented letter"
+  @ascii "the slugger writes ASCII; we keep the Cyrillic letter"
+  @latin_keep "the slugger writes ASCII; `latin: :keep` keeps the accented letter"
   @emoji "with `withEmoji` and a locale Symfony writes the emoji names; we drop emoji"
 
   @cases [
@@ -30,10 +32,12 @@ defmodule MishkaSlug.Compat.SymfonyTest do
     {"foo@bar", [], "foo-bar", "foo-bar", nil},
     {"foo@bar", [language: "en"], "foo-at-bar", "foo-bar",
      "the `en` locale writes `@` as `at`; we treat it as a separator"},
-    {"é$!à", [], "e-a", "é-à", @ascii},
-    {"ä", [], "a", "ä", @ascii},
-    {"ä", [language: "de"], "ae", "ä", @ascii},
-    {"ä", [language: "fr"], "a", "ä", @ascii},
+    {"é$!à", [], "e-a", "e-a", nil},
+    {"é$!à", [latin: :keep], "e-a", "é-à", @latin_keep},
+    {"ä", [], "a", "a", nil},
+    {"ä", [language: "de"], "ae", "ae", nil},
+    {"ä", [language: "de", latin: :keep], "ae", "ä", @latin_keep},
+    {"ä", [language: "fr"], "a", "a", nil},
     {"ғ", [], "g", "ғ", @ascii},
     {"ғ", [language: "uz"], "gh", "ғ", @ascii},
     {"un 😺, 🐈‍⬛, et un 🦁 vont au 🏞️", [language: "fr"],

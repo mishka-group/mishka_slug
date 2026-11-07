@@ -11,7 +11,8 @@ defmodule MishkaSlug.Compat.SimpleSlugTest do
   Source: https://github.com/vforgione/simple_slug, `lib/simple_slug.ex` and
   `test/simple_slugs_test.exs` (which only runs the doctests), GPL-3.0. The project is GPL, so
   none of its examples is copied: the inputs are our own, and the original column is what
-  `SimpleSlug.slugify/2` gives, which splits only on the code points U+0000 to U+002F.
+  `SimpleSlug.slugify/2` gives, which splits only on the code points U+0000 to U+002F. It keeps
+  accented letters, so its rows with them run with `latin: :keep`.
 
   | Difference | Why |
   |---|---|
@@ -24,7 +25,9 @@ defmodule MishkaSlug.Compat.SimpleSlugTest do
   @delimiter "simple_slug splits only on U+0000 to U+002F, so this URL delimiter stays in its slug"
 
   @cases [
-    {"Grüße aus Köln", [], "grüße-aus-köln", "grüße-aus-köln", nil},
+    {"Grüße aus Köln", [latin: :keep], "grüße-aus-köln", "grüße-aus-köln", nil},
+    {"Grüße aus Köln", [], "grüße-aus-köln", "gruse-aus-koln",
+     "`latin: :ascii` drops the accents and writes `ß` as `s`, as WordPress does"},
     {"京都タワー観光2019年3月", [], "京都タワー観光2019年3月", "京都タワー観光2019年3月", nil},
     {"Hello, World!", [], "hello-world", "hello-world", nil},
     {"Hello World", [max_length: 5], "hello", "hello", nil},
@@ -35,7 +38,7 @@ defmodule MishkaSlug.Compat.SimpleSlugTest do
     {"user@host", [], "user@host", "user-host", @delimiter},
     {"[draft];final", [], "[draft];final", "draft-final", @delimiter},
     {"a\u{00A0}b", [], "a\u{00A0}b", "a-b", "`U+00A0` is not in U+0000 to U+002F, so it is kept"},
-    {"Ünï ĉode — dash", [], "ünï-ĉode-—-dash", "ünï-ĉode-dash",
+    {"Ünï ĉode — dash", [latin: :keep], "ünï-ĉode-—-dash", "ünï-ĉode-dash",
      "`—` is not in U+0000 to U+002F, so it is kept"},
     {"pay\u{200B}pal", [], "pay\u{200B}pal", "paypal",
      "`simple_slug` keeps the zero-width space; we remove invisible characters"},

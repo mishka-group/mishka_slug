@@ -7,7 +7,8 @@ defmodule MishkaSlug do
   URL slugs that keep the original script.
 
   `slugify/2` turns a title into a slug in its own writing system: Persian stays Persian, Hindi
-  stays Hindi, Japanese stays Japanese. Nothing is transliterated.
+  stays Hindi, Japanese stays Japanese. Only Latin letters change: they lose their accents the
+  way WordPress writes them (`Café` gives `cafe`), unless `latin: :keep`.
 
       iex> MishkaSlug.slugify("قیمت\u{200C}گذاری نرم\u{200C}افزار")
       {:ok, "قیمتگذاری-نرمافزار"}
@@ -25,9 +26,10 @@ defmodule MishkaSlug do
   else, from spaces and punctuation to emoji and `/ ? # % \\ :`, separates words. The result is
   NFC, so a stored slug compares equal to a pasted one (Hangul jamo are composed even after a
   prepended sign such as Tulu-Tigalari `U+113D1`, which OTP's normalizer leaves decomposed).
-  Latin accents stay as typed (`Café` gives `café`, `Straße` gives `straße`), an apostrophe
-  inside a word is removed (`don't` gives `dont`), and `_`, `.`, `&` and `,` separate words
-  (`Q&A` gives `q-a`, `1,000` gives `1-000`). A capital sigma that ends a Greek word becomes `ς`
+  Latin letters lose their accents the way WordPress writes them (`Café Crème` gives
+  `cafe-creme`, see `:latin`), an apostrophe inside a word is removed (`don't` gives `dont`),
+  `_` stays inside a word (`snake_case` gives `snake_case`, see `:keep`), and `.`, `&` and `,`
+  separate words (`Q&A` gives `q-a`, `1,000` gives `1-000`). A capital sigma that ends a Greek word becomes `ς`
   (`ΟΔΟΣ` gives `οδος`) in every language but `tr` and `az`.
 
   ## Safety
@@ -54,7 +56,8 @@ defmodule MishkaSlug do
 
     * `:language` - `String.t() | nil`, default `nil`. The language of the text, such as a page's
       `language` (`"fa"`, `"tr"`). It picks the lowercasing rules (`tr` and `az` turn `I` into
-      `ı`) and, for `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`.
+      `ı`), for `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`, and for
+      `de`, `da`, `ca`, `sr` and `bs` picks how `latin: :ascii` spells their letters.
 
     * `:locales` - `[String.t()]`, default `[]`. The site's languages (`["fa", "en"]`). Only
       letters of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps every
@@ -72,9 +75,21 @@ defmodule MishkaSlug do
     * `:digits` - `:keep | :ascii`, default `:keep`. `:keep` leaves digits as typed (`۱۴۰۳`);
       `:ascii` writes every decimal digit as `0-9` (`1403`).
 
-    * `:keep` - list of `"."`, `"_"` and `"~"`, default `[]`. Characters kept inside a word
+    * `:latin` - `:ascii | :keep`, default `:ascii`. What happens to accented Latin letters.
+      `:ascii` writes them as WordPress's `remove_accents` does: a letter is decomposed and its
+      marks dropped (`é` gives `e`, Vietnamese `ệ` gives `e`), and the letters that do not
+      decompose get a plain spelling (`ß` gives `s`, `æ` `ae`, `ø` `o`, `þ` `th`, `ł` `l`, `ı`
+      `i`). The `:language` adds its own spelling: `de` writes `ä ö ü ß` as `ae oe ue ss`, `da`
+      writes `æ ø å` as `ae oe aa`, `ca` joins `l·l` into `ll`, and `sr` and `bs` write `đ` as
+      `dj`. Only Latin letters change: Greek, Cyrillic, Arabic and every other script keep their
+      marks. `:keep` leaves Latin letters as typed (`Café` gives `café`).
+
+    * `:keep` - list of `"."`, `"_"` and `"~"`, default `["_"]`. Characters kept inside a word
       (`["."]` keeps `v1.2`). Only the URL-safe `.`, `_` and `~` are accepted. They never start
-      or end a word.
+      or end a word: `__init__` gives `init`. By default `_` is kept like WordPress and Django
+      keep it (`snake_case_name`); `keep: []` makes it a word break again (`snake-case-name`).
+      The list replaces the default, so `keep: ["."]` breaks on `_`; write `[".", "_"]` to keep
+      both.
 
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
       (what Postgres and Ash count). Whole words are kept while they fit; a first word that is
@@ -93,6 +108,33 @@ defmodule MishkaSlug do
   @optional_marks ~r/[\x{0640}\x{064B}-\x{065F}\x{0670}\x{06D6}-\x{06DC}\x{06DF}-\x{06E4}\x{06E7}\x{06E8}\x{06EA}-\x{06ED}\x{0591}-\x{05BD}\x{05BF}\x{05C1}\x{05C2}\x{05C4}\x{05C5}\x{05C7}]/u
   @apostrophe ~r/(?<=\p{L})['\x{2019}](?=\p{L})/u
   @digit ~r/\p{Nd}/u
+  @latin ~r/\p{sc=Latin}\p{M}*/u
+  @mark ~r/\p{M}/u
+  @catalan_dot ~r/l\x{00B7}(?=l)/u
+
+  @latin_letters %{
+    "ß" => "s",
+    "æ" => "ae",
+    "ð" => "d",
+    "ø" => "o",
+    "þ" => "th",
+    "đ" => "d",
+    "ħ" => "h",
+    "ı" => "i",
+    "ĸ" => "k",
+    "ł" => "l",
+    "ŋ" => "n",
+    "œ" => "oe",
+    "ŧ" => "t",
+    "ə" => "e"
+  }
+
+  @latin_languages %{
+    "de" => %{"ä" => "ae", "ö" => "oe", "ü" => "ue", "ß" => "ss"},
+    "da" => %{"æ" => "ae", "ø" => "oe", "å" => "aa"},
+    "sr" => %{"đ" => "dj"},
+    "bs" => %{"đ" => "dj"}
+  }
   # Workaround for OTP's NFC (`:unicode.characters_to_nfc_binary`, `String.normalize(:nfc)`, seen on
   # OTP 29): it composes per grapheme cluster and only recomposes Hangul when the cluster starts with
   # a leading jamo, so a prepend sign before Korean jamo (U+0600, U+0D4E, U+113D1) leaves the syllable
@@ -155,14 +197,43 @@ defmodule MishkaSlug do
     |> String.normalize(:nfkc)
     |> zwnj(opts[:zwnj])
     |> String.replace(@whitespace, " ")
-    |> lowercase(opts[:language] && Scripts.language(opts[:language]))
+    |> lowercase(language(opts))
     |> String.normalize(:nfkc)
     |> String.replace(@invisible, "")
     |> fold(fold?(opts))
     |> String.replace(@optional_marks, "")
     |> digits(opts[:digits])
     |> String.replace(@apostrophe, "")
+    |> latin(opts[:latin], language(opts))
     |> nfc()
+  end
+
+  defp language(opts), do: opts[:language] && Scripts.language(opts[:language])
+
+  defp latin(text, :keep, _language), do: text
+
+  defp latin(text, :ascii, language) do
+    letters = Map.merge(@latin_letters, Map.get(@latin_languages, language, %{}))
+
+    text
+    |> catalan(language)
+    |> String.replace(@latin, &ascii_letter(&1, letters))
+  end
+
+  defp catalan(text, "ca"), do: String.replace(text, @catalan_dot, "l")
+  defp catalan(text, _language), do: text
+
+  defp ascii_letter(letter, letters) do
+    case Map.fetch(letters, String.normalize(letter, :nfc)) do
+      {:ok, ascii} ->
+        ascii
+
+      :error ->
+        letter
+        |> String.normalize(:nfd)
+        |> String.replace(@mark, "")
+        |> String.replace(Map.keys(letters), &Map.fetch!(letters, &1))
+    end
   end
 
   defp nfc(text) do

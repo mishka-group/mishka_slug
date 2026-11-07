@@ -18,14 +18,16 @@ defmodule MishkaSlug.Compat.GithubSluggerTest do
   | Difference | Why |
   |---|---|
   | Edges and runs | GitHub keeps one `-` for every space, dash or removed symbol; we join with one. |
-  | `_`, `.` | GitHub keeps `_` and deletes `.`; we break the word at both unless `keep` says otherwise. |
+  | `_` | GitHub keeps `_` anywhere; we keep it inside a word only, and `keep: []` breaks there. |
+  | `.` | GitHub deletes `.` and joins the parts; we break the word unless `keep: ["."]`. |
   | `–` | GitHub deletes the en and em dash and joins the parts; we break the word. |
   | `__proto__` | GitHub keeps the underscores; we do not start a slug with `_`. |
   """
 
   @runs "GitHub keeps one hyphen per space or symbol; we join any run with one"
   @edges "GitHub keeps a hyphen at the edge; we never start or end a slug with one"
-  @underscore "GitHub keeps `_`; we break the word there unless `keep: [\"_\"]`"
+  @underscore "GitHub keeps `_`; `keep: []` makes it a word break"
+  @lone_underscore "GitHub keeps a lone `_`; we keep `_` only inside a word"
   @dot "GitHub deletes `.` and joins the parts; we break the word"
 
   @cases [
@@ -37,14 +39,14 @@ defmodule MishkaSlug.Compat.GithubSluggerTest do
     {"foxtrot-1", [], "foxtrot-1", "foxtrot-1", nil},
     {"heading with a - dash", [], "heading-with-a---dash", "heading-with-a-dash", @runs},
     {"heading with an _ underscore", [], "heading-with-an-_-underscore",
-     "heading-with-an-underscore", @underscore},
+     "heading-with-an-underscore", @lone_underscore},
     {"heading with a period.txt", [], "heading-with-a-periodtxt", "heading-with-a-period-txt",
      @dot},
     {"heading with a period.txt", [keep: ["."]], "heading-with-a-periodtxt",
      "heading-with-a-period.txt", @dot},
     {"exchange.bind_headers(exchange, routing [, bindCallback])", [],
      "exchangebind_headersexchange-routing--bindcallback",
-     "exchange-bind-headers-exchange-routing-bindcallback", @dot},
+     "exchange-bind_headers-exchange-routing-bindcallback", @dot},
     {" ", [], "-", :empty, "GitHub gives `-` for a blank heading; we have no slug"},
     {" a", [], "-a", "a", @edges},
     {"a ", [], "a-", "a", @edges},
@@ -65,12 +67,12 @@ defmodule MishkaSlug.Compat.GithubSluggerTest do
     {"Профили пользователей", [], "профили-пользователей", "профили-пользователей", nil},
     {"Привет non-latin 你好", [], "привет-non-latin-你好", "привет-non-latin-你好", nil},
     {":ok: No underscore", [], "ok-no-underscore", "ok-no-underscore", nil},
-    {":ok_hand: Single", [], "ok_hand-single", "ok-hand-single", @underscore},
-    {":ok_hand: Single", [keep: ["_"]], "ok_hand-single", "ok_hand-single", nil},
+    {":ok_hand: Single", [], "ok_hand-single", "ok_hand-single", nil},
+    {":ok_hand: Single", [keep: []], "ok_hand-single", "ok-hand-single", @underscore},
     {":ok_hand::hatched_chick: Two in a row with no spaces", [],
      "ok_handhatched_chick-two-in-a-row-with-no-spaces",
-     "ok-hand-hatched-chick-two-in-a-row-with-no-spaces",
-     "GitHub joins the two names; we break at `:` and `_`"},
+     "ok_hand-hatched_chick-two-in-a-row-with-no-spaces",
+     "GitHub joins the two names; we break at `:`"},
     {"a\u{2028}b", [], "ab", "a-b", "GitHub deletes the line separator; we break the word"},
     {"a\u{2029}b", [], "ab-1", "a-b",
      "GitHub deletes the paragraph separator; we break the word"},

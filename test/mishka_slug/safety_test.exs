@@ -77,7 +77,15 @@ defmodule MishkaSlug.SafetyTest do
               ]
 
     test "is idempotent and safe for a URL path segment" do
-      for title <- @corpus, opts <- [[], [keep: ["."]], [digits: :ascii], [zwnj: :separator]] do
+      for title <- @corpus,
+          opts <- [
+            [],
+            [keep: ["."]],
+            [keep: []],
+            [latin: :keep],
+            [digits: :ascii],
+            [zwnj: :separator]
+          ] do
         {:ok, slug} = MishkaSlug.slugify(title, opts)
 
         assert {:ok, ^slug} = MishkaSlug.slugify(slug, opts)

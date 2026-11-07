@@ -66,11 +66,16 @@ defmodule MishkaSlug.ChangeTest do
     assert opts[:language] == "tr"
     assert opts[:locales] == ["fa", "en"]
     assert opts[:max_length] == 20
-    assert {:ok, "ışık"} = MishkaSlug.slugify("IŞIK", opts)
+    assert {:ok, "isik"} = MishkaSlug.slugify("IŞIK", opts)
+    assert {:ok, "ışık"} = MishkaSlug.slugify("IŞIK", Keyword.put(opts, :latin, :keep))
   end
 
   test "invalid change options are refused when the change is set up" do
     assert {:error, message} = MishkaSlug.Change.init(from: :title, keep: ["?"])
     assert message =~ "keep"
+    assert {:error, message} = MishkaSlug.Change.init(from: :title, latin: :translit)
+    assert message =~ "latin"
+    assert {:ok, opts} = MishkaSlug.Change.init(from: :title, latin: :keep, keep: [])
+    assert opts[:latin] == :keep and opts[:keep] == []
   end
 end

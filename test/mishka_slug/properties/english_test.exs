@@ -12,13 +12,14 @@ defmodule MishkaSlug.Properties.EnglishTest do
   The table lists real headline shapes with the slug python-slugify gives (its default, ASCII
   mode) and the slug `MishkaSlug` gives. A row where they differ carries the reason. The
   properties check a plain-English title against a short reference written here: lowercase ASCII
-  words joined by one `-`, an apostrophe between two letters removed, everything else a break.
+  words joined by one `-`, an apostrophe between two letters removed, `_` kept inside a word (the
+  default `keep: ["_"]`) and everything else a break.
   """
 
   alias MishkaSlug.SlugGen
 
-  @accents "accented Latin letters stay as typed; python-slugify transliterates them to ASCII"
-  @ligature "no transliteration: the letter is only lowercased, python-slugify spells it out"
+  @underscore "`_` stays inside a word, as WordPress keeps it; python-slugify breaks on it"
+  @latin_keep "`latin: :keep` leaves accented letters as typed; python-slugify writes ASCII"
 
   @cases [
     {"Hello, World!", [], "hello-world", "hello-world", nil},
@@ -33,7 +34,8 @@ defmodule MishkaSlug.Properties.EnglishTest do
     {"A--B", [], "a-b", "a-b", nil},
     {"  spaced  ", [], "spaced", "spaced", nil},
     {"UPPER lower", [], "upper-lower", "upper-lower", nil},
-    {"snake_case_name", [], "snake-case-name", "snake-case-name", nil},
+    {"snake_case_name", [], "snake-case-name", "snake_case_name", @underscore},
+    {"snake_case_name", [keep: []], "snake-case-name", "snake-case-name", nil},
     {"CamelCase", [], "camelcase", "camelcase", nil},
     {"file.name.ext", [], "file-name-ext", "file-name-ext", nil},
     {"50% off", [], "50-off", "50-off", nil},
@@ -45,12 +47,16 @@ defmodule MishkaSlug.Properties.EnglishTest do
     {"Well — that’s that – really…", [], "well-thats-that-really", "well-thats-that-really", nil},
     {"“Smart” ‘quotes’ don’t", [], "smart-quotes-dont", "smart-quotes-dont", nil},
     {"Wait… what", [], "wait-what", "wait-what", nil},
-    {"Café Crème", [], "cafe-creme", "café-crème", @accents},
-    {"naïve façade", [], "naive-facade", "naïve-façade", @accents},
-    {"Ångström", [], "angstrom", "ångström", @accents},
-    {"Straße", [], "strasse", "straße", @accents},
-    {"Ærøskøbing", [], "aeroskobing", "ærøskøbing", @accents},
-    {"ŒUVRE", [], "oeuvre", "œuvre", @ligature},
+    {"Café Crème", [], "cafe-creme", "cafe-creme", nil},
+    {"Café Crème", [latin: :keep], "cafe-creme", "café-crème", @latin_keep},
+    {"naïve façade", [], "naive-facade", "naive-facade", nil},
+    {"Ångström", [], "angstrom", "angstrom", nil},
+    {"Straße", [], "strasse", "strase",
+     "`ß` becomes `s` as in WordPress; `language: \"de\"` writes `ss`"},
+    {"Straße", [language: "de"], "strasse", "strasse", nil},
+    {"Straße", [latin: :keep], "strasse", "straße", @latin_keep},
+    {"Ærøskøbing", [], "aeroskobing", "aeroskobing", nil},
+    {"ŒUVRE", [], "oeuvre", "oeuvre", nil},
     {"İstanbul", [], "istanbul", "istanbul", nil},
     {"ﬁne ﬂour", [], "fine-flour", "fine-flour", nil},
     {"½ cup of tea", [], "1-2-cup-of-tea", "1-2-cup-of-tea", nil},
@@ -93,12 +99,16 @@ defmodule MishkaSlug.Properties.EnglishTest do
 
   compat_cases(@cases)
 
-  defp reference(title, max_length) do
+  defp reference(title, max_length, underscore? \\ true) do
+    separator = if underscore?, do: ~r/[^a-z0-9_]+/, else: ~r/[^a-z0-9]+/
+
     words =
       title
       |> String.downcase()
       |> then(&Regex.replace(~r/(?<=[a-z])'(?=[a-z])/, &1, ""))
-      |> String.split(~r/[^a-z0-9]+/, trim: true)
+      |> String.split(separator, trim: true)
+      |> Enum.map(&String.trim(&1, "_"))
+      |> Enum.reject(&(&1 == ""))
 
     case take_words(words, max_length) do
       [] -> {:error, :empty}
@@ -120,7 +130,13 @@ defmodule MishkaSlug.Properties.EnglishTest do
     if length <= max, do: fit(rest, max, [word | taken], length), else: Enum.reverse(taken)
   end
 
-  defp first_or_cut([], first, max), do: [String.slice(first, 0, max)]
+  defp first_or_cut([], first, max) do
+    case first |> String.slice(0, max) |> String.trim("_") do
+      "" -> []
+      cut -> [cut]
+    end
+  end
+
   defp first_or_cut(taken, _first, _max), do: taken
 
   defp english_options do
@@ -130,7 +146,7 @@ defmodule MishkaSlug.Properties.EnglishTest do
   property "a plain English title slugs to lowercase words joined by single hyphens" do
     check all(title <- SlugGen.english_title(), opts <- english_options(), max_runs: 5_000) do
       opts = Keyword.put(opts, :max_length, nil)
-      assert MishkaSlug.slugify(title, opts) == reference(title, nil)
+      assert MishkaSlug.slugify(title, opts) == reference(title, nil, false)
     end
   end
 
@@ -145,9 +161,11 @@ defmodule MishkaSlug.Properties.EnglishTest do
   end
 
   property "an English slug has no leading or trailing hyphen, no doubled hyphen and no uppercase" do
+    word = "[a-z0-9]+(_+[a-z0-9]+)*"
+
     check all(title <- SlugGen.english_title(), max_runs: 3_000) do
       with {:ok, slug} <- MishkaSlug.slugify(title) do
-        assert slug =~ ~r/\A[a-z0-9]+(-[a-z0-9]+)*\z/
+        assert slug =~ ~r/\A#{word}(-#{word})*\z/
       end
     end
   end

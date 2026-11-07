@@ -16,7 +16,7 @@ defmodule MishkaSlug.Compat.SlugifyRsTest do
 
   | Difference | Why |
   |---|---|
-  | Non-ASCII letters | The crate transliterates to ASCII; we keep the script. |
+  | Letters outside Latin | The crate transliterates every script to ASCII; we do it for Latin only. |
   """
 
   @ascii "the crate transliterates to ASCII; we keep the script's own letters"
@@ -32,10 +32,12 @@ defmodule MishkaSlug.Compat.SlugifyRsTest do
     {"101", [], "101", "101", nil},
     {"1000 reasons you are #1", [], "1000-reasons-you-are-1", "1000-reasons-you-are-1", nil},
     {"影師嗎", [], "ying-shi-ma", "影師嗎", @ascii},
-    {"Æúű--cool?", [], "aeuu-cool", "æúű-cool", @ascii},
+    {"Æúű--cool?", [], "aeuu-cool", "aeuu-cool", nil},
     {"Nín hǎo. Wǒ shì zhōng guó rén", [], "nin-hao-wo-shi-zhong-guo-ren",
-     "nín-hǎo-wǒ-shì-zhōng-guó-rén", @ascii},
-    {"jaja---lol-méméméoo--a", [], "jaja-lol-mememeoo-a", "jaja-lol-méméméoo-a", @ascii},
+     "nin-hao-wo-shi-zhong-guo-ren", nil},
+    {"jaja---lol-méméméoo--a", [], "jaja-lol-mememeoo-a", "jaja-lol-mememeoo-a", nil},
+    {"jaja---lol-méméméoo--a", [latin: :keep], "jaja-lol-mememeoo-a", "jaja-lol-méméméoo-a",
+     "`latin: :keep` leaves the accents as typed; the crate writes ASCII"},
     {"Компьютер", [], "komp-iuter", "компьютер", @ascii},
     {"hello world", [max_length: 5], "hello", "hello", nil},
     {"hello world", [max_length: 6], "hello", "hello", nil},

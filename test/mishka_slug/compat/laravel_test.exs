@@ -27,7 +27,9 @@ defmodule MishkaSlug.Compat.LaravelTest do
   @cases [
     {"hello world", [], "hello-world", "hello-world", nil},
     {"hello-world", [], "hello-world", "hello-world", nil},
-    {"hello_world", [], "hello-world", "hello-world", nil},
+    {"hello_world", [], "hello-world", "hello_world",
+     "Laravel turns `_` into the separator; we keep it inside a word, as WordPress does"},
+    {"hello_world", [keep: []], "hello-world", "hello-world", nil},
     {"user@host", [], "user-at-host", "user-host",
      "Laravel writes `@` as the word `at`; we treat `@` as a separator"},
     {"سلام دنیا", [], "سلام-دنیا", "سلام-دنیا", nil},

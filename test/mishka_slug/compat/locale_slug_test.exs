@@ -18,25 +18,33 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
 
   | Difference | Why |
   |---|---|
-  | Letters outside ASCII | `locale_slug` romanises Latin, Cyrillic and Greek; we keep each script. |
+  | Letters outside Latin | `locale_slug` romanises Cyrillic and Greek too; we write only Latin as ASCII. |
+  | `ß` without a language | `locale_slug` writes `ss`; we write `s` like WordPress, `ss` with `de`. |
   | Digits | `locale_slug` folds every digit to `0-9`; we keep digits as typed unless `digits: :ascii`. |
   """
 
   @romanised "locale_slug romanises this script to ASCII; we keep the script's own letters"
-  @umlaut "locale_slug expands or folds the letter by locale; we keep it and only lowercase"
+  @latin_keep "`latin: :keep` leaves the Latin letter as typed; locale_slug romanises it"
 
   @cases [
-    {"Größe Fußball", [language: "de"], "groesse-fussball", "größe-fußball", @umlaut},
-    {"Töö õun", [language: "et"], "too-oun", "töö-õun", @umlaut},
-    {"Öl", [language: "de"], "oel", "öl", @umlaut},
-    {"Öl", [language: "et"], "ol", "öl", @umlaut},
-    {"Größe Fußball", [], "grosse-fussball", "größe-fußball", @umlaut},
-    {"Łódź", [], "lodz", "łódź", @romanised},
-    {"Rødgrød med fløde", [], "rodgrod-med-flode", "rødgrød-med-fløde", @romanised},
-    {"Işık", [], "isik", "işık", @romanised},
-    {"Işık", [language: "tr"], nil, "ışık",
+    {"Größe Fußball", [language: "de"], "groesse-fussball", "groesse-fussball", nil},
+    {"Größe Fußball", [language: "de", latin: :keep], "groesse-fussball", "größe-fußball",
+     @latin_keep},
+    {"Töö õun", [language: "et"], "too-oun", "too-oun", nil},
+    {"Öl", [language: "de"], "oel", "oel", nil},
+    {"Öl", [language: "et"], "ol", "ol", nil},
+    {"Größe Fußball", [], "grosse-fussball", "grose-fusball",
+     "without a language `ß` is `s`, as in WordPress; locale_slug writes `ss`"},
+    {"Łódź", [], "lodz", "lodz", nil},
+    {"Rødgrød med fløde", [], "rodgrod-med-flode", "rodgrod-med-flode", nil},
+    {"Rødgrød med fløde", [language: "da"], nil, "roedgroed-med-floede",
+     "Danish writes `ø` as `oe`, as WordPress does for `da`"},
+    {"Işık", [], "isik", "isik", nil},
+    {"Işık", [language: "tr"], nil, "isik",
+     "locale_slug has no Turkish table; `tr` lowercases `I` to `ı`, then written as `i`"},
+    {"Işık", [language: "tr", latin: :keep], nil, "ışık",
      "locale_slug has no Turkish table; with `tr` we lowercase `I` to the dotless `ı`"},
-    {"Æther", [], "aether", "æther", @romanised},
+    {"Æther", [], "aether", "aether", nil},
     {"فصل ٢", [], "فصل-2", "فصل-٢",
      "locale_slug folds every digit to `0-9`; we keep digits as typed"},
     {"فصل ٢", [digits: :ascii], "فصل-2", "فصل-2", nil},
@@ -98,8 +106,8 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
   @languages [nil, "de", "et", "ru", "uk", "bg", "sr", "el", "tr", "fa"]
 
   defp each_case(fun) do
-    for text <- @corpus, language <- @languages do
-      fun.(text, if(language, do: [language: language], else: []))
+    for text <- @corpus, language <- @languages, latin <- [:ascii, :keep] do
+      fun.(text, if(language, do: [language: language, latin: latin], else: [latin: latin]))
     end
   end
 
@@ -113,7 +121,7 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
   test "a slug holds only letters, marks, digits and single inner hyphens" do
     each_case(fn text, opts ->
       with {:ok, slug} <- MishkaSlug.slugify(text, opts) do
-        assert slug =~ ~r/\A[\p{L}\p{M}\p{Nd}]+(-[\p{L}\p{M}\p{Nd}]+)*\z/u,
+        assert slug =~ ~r/\A[\p{L}\p{M}\p{Nd}_]+(-[\p{L}\p{M}\p{Nd}_]+)*\z/u,
                "#{inspect(text)} #{inspect(opts)} -> #{inspect(slug)}"
       end
     end)
@@ -135,14 +143,20 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
     end)
   end
 
-  test "German letters written decomposed still lowercase as the language says" do
-    assert MishkaSlug.slugify("O\u{0308}l", language: "de") == {:ok, "öl"}
-    assert MishkaSlug.slugify("Gro\u{00DF}e", language: "de") == {:ok, "große"}
+  test "German letters written decomposed still lowercase and spell as the language says" do
+    assert MishkaSlug.slugify("O\u{0308}l", language: "de") == {:ok, "oel"}
+    assert MishkaSlug.slugify("Gro\u{00DF}e", language: "de") == {:ok, "grosse"}
+    assert MishkaSlug.slugify("O\u{0308}l", language: "de", latin: :keep) == {:ok, "öl"}
+    assert MishkaSlug.slugify("Gro\u{00DF}e", language: "de", latin: :keep) == {:ok, "große"}
   end
 
   test "max_length bounds the slug in code points and never ends it in a hyphen" do
-    for text <- @corpus, language <- @languages, length <- [1, 2, 3, 5, 8, 13, 40] do
-      opts = [max_length: length] ++ if(language, do: [language: language], else: [])
+    for text <- @corpus,
+        language <- @languages,
+        latin <- [:ascii, :keep],
+        length <- [1, 2, 3, 5, 8, 13, 40] do
+      opts =
+        [max_length: length, latin: latin] ++ if(language, do: [language: language], else: [])
 
       case MishkaSlug.slugify(text, opts) do
         {:ok, slug} ->

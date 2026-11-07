@@ -15,16 +15,16 @@ defmodule MishkaSlug.Compat.StrSlugTest do
 
   | Difference | Why |
   |---|---|
-  | `Æ`, `☣` | The crate writes `ae` and `biohazard`; we keep the letter and drop the symbol. |
+  | `☣` | The crate writes `biohazard`; we drop the symbol. |
   """
 
-  @transliterated "the crate writes ASCII names for letters and symbols; we keep the letter and drop the symbol"
+  @transliterated "the crate writes an ASCII name for the symbol; we drop it"
 
   @cases [
     {"   Hello, world!", [], "hello-world", "hello-world", nil},
     {"Hello, ascii", [], "hello-ascii", "hello-ascii", nil},
-    {"Æ, ☣", [], "ae-biohazard", "æ", @transliterated},
-    {"Hello, Æ, ☣", [], "hello-ae-biohazard", "hello-æ", @transliterated},
+    {"Æ, ☣", [], "ae-biohazard", "ae", @transliterated},
+    {"Hello, Æ, ☣", [], "hello-ae-biohazard", "hello-ae", @transliterated},
     {"Hello, ❤ ;-)", [], "hello", "hello", nil}
   ]
 

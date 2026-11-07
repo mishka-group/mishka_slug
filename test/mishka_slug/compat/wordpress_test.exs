@@ -12,22 +12,25 @@ defmodule MishkaSlug.Compat.WordPressTest do
   `tests/phpunit/tests/formatting/sanitizeTitleWithDashes.php` and `sanitizeTitle.php`,
   GPL-2.0-or-later. These files are GPL, so no string or table is copied here: the inputs are
   our own, written to exercise the same rule. The original column is what the matching WordPress
-  rule gives (`save` context, decoded from the percent-encoding it returns).
+  rule gives (`save` context, decoded from the percent-encoding it returns). Its locale rules
+  for accents (`de`, `da`, `ca`, `sr`, `bs`) are compared with the same code as our `:language`.
 
   | Difference | Why |
   |---|---|
   | HTML tags | WordPress strips them; we do not parse HTML, the tag names become words. |
   | Entities | WordPress drops `&nbsp;` and `&amp;`; we do not decode them, the names become words. |
   | `&`, `%` inside a word | WordPress deletes them and joins the parts; we break the word. |
-  | Latin diacritics | WordPress replaces them with ASCII; we keep the letter. |
+  | Latin diacritics with `latin: :keep` | WordPress always replaces them with ASCII, as our default does. |
   | `×`, `™` | WordPress maps them to `x` and drops `™`; `×` separates and `™` folds to `tm`. |
+  | `_` at a word's ends | WordPress keeps it; a word of ours never starts or ends with `_`. |
+  | `·` outside Catalan | WordPress keeps the middle dot; we treat it as a separator. |
   | Fallback title | WordPress `sanitize_title/2` can return a fallback; we return `{:error, :empty}`. |
   """
 
   @tags "we do not parse HTML, so a tag name becomes a word"
   @entities "we do not decode HTML entities, so the entity name becomes a word"
   @join "WordPress deletes the character and joins the parts; we break the word there"
-  @diacritics "WordPress writes the ASCII letter; we keep the accented letter"
+  @diacritics "WordPress always writes the ASCII letter; `latin: :keep` keeps the accented letter"
 
   @cases [
     {"Big <strong>News</strong> today", [], "big-news-today", "big-strong-news-strong-today",
@@ -60,7 +63,29 @@ defmodule MishkaSlug.Compat.WordPressTest do
     {"//words by Left/-Right", [], "words-by-left-right", "words-by-left-right", nil},
     {"6×7 is 42", [], "6x7-is-42", "6-7-is-42",
      "WordPress writes `×` as `x`; we treat it as a separator"},
-    {"āáǎà", [], "aaaa", "āáǎà", @diacritics},
+    {"āáǎà", [], "aaaa", "aaaa", nil},
+    {"āáǎà", [latin: :keep], "aaaa", "āáǎà", @diacritics},
+    {"Crème brûlée façon Noël", [], "creme-brulee-facon-noel", "creme-brulee-facon-noel", nil},
+    {"Tiếng Việt Đẹp", [], "tieng-viet-dep", "tieng-viet-dep", nil},
+    {"Łódź Ærø Œuvre Þing", [], "lodz-aero-oeuvre-thing", "lodz-aero-oeuvre-thing", nil},
+    {"Straße", [], "strase", "strase", nil},
+    {"Straße Grüße Öl", [language: "de"], "strasse-gruesse-oel", "strasse-gruesse-oel", nil},
+    {"Straße", [language: "de-AT"], "strasse", "strasse", nil},
+    {"Blåbærsyltetøj", [], "blabaersyltetoj", "blabaersyltetoj", nil},
+    {"Blåbærsyltetøj", [language: "da"], "blaabaersyltetoej", "blaabaersyltetoej", nil},
+    {"Col·lecció", [language: "ca"], "colleccio", "colleccio", nil},
+    {"Col·lecció", [], "col·leccio", "col-leccio",
+     "WordPress keeps the middle dot outside Catalan; we treat it as a separator"},
+    {"Đorđe Đoković", [language: "sr"], "djordje-djokovic", "djordje-djokovic", nil},
+    {"Đorđe", [language: "bs"], "djordje", "djordje", nil},
+    {"Đorđe", [], "dorde", "dorde", nil},
+    {"Işık Şeker", [language: "tr"], "isik-seker", "isik-seker", nil},
+    {"snake_case_name", [], "snake_case_name", "snake_case_name", nil},
+    {"snake_case_name", [keep: []], "snake_case_name", "snake-case-name",
+     "`keep: []` makes `_` a word break; WordPress always keeps it"},
+    {"__init__ method", [], "__init__-method", "init-method",
+     "WordPress keeps `_` at the ends of a word; a word of ours never starts or ends with `_`"},
+    {"Привет Ελλάδα", [], "привет-ελλάδα", "привет-ελλάδα", nil},
     {"Nonvisible \u{FEFF}in middle", [], "nonvisible-in-middle", "nonvisible-in-middle", nil},
     {"\u{200B}Nonvisible at start", [], "nonvisible-at-start", "nonvisible-at-start", nil},
     {"Nonvisible at end \u{200B}", [], "nonvisible-at-end", "nonvisible-at-end", nil},

@@ -10,18 +10,17 @@ defmodule MishkaSlug.Compat.RustSlugTest do
 
   Source: https://github.com/Stebalien/slug-rs, `src/lib.rs` (the `slugify` doc tests),
   Apache-2.0. The strings are the crate's; the original column is what `slug::slugify` returns.
-  Its `deunicode` step writes ASCII for every other script; we keep the script.
-
-  | Difference | Why |
-  |---|---|
-  | `Æúű` | `deunicode` writes `aeuu`; we keep the letters. |
+  Its `deunicode` step writes ASCII for every script; we do that for Latin only and keep the
+  others. Every case here agrees.
   """
 
   @cases [
     {"My Test String!!!1!1", [], "my-test-string-1-1", "my-test-string-1-1", nil},
     {"test\nit   now!", [], "test-it-now", "test-it-now", nil},
     {"  --test_-_cool", [], "test-cool", "test-cool", nil},
-    {"Æúű--cool?", [], "aeuu-cool", "æúű-cool", "deunicode writes ASCII; we keep the letters"},
+    {"Æúű--cool?", [], "aeuu-cool", "aeuu-cool", nil},
+    {"Æúű--cool?", [latin: :keep], "aeuu-cool", "æúű-cool",
+     "`latin: :keep` leaves the letters as typed; deunicode writes ASCII"},
     {"You & Me", [], "you-me", "you-me", nil},
     {"user@example.com", [], "user-example-com", "user-example-com", nil}
   ]

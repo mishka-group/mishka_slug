@@ -10,7 +10,8 @@ defmodule MishkaSlug.Compat.SlugIntlTest do
 
   Source: https://github.com/danieldickison/slug_intl, `src/lib.rs` (the `slugify` doc tests),
   MIT. The strings are the crate's; the original column is what `slug_intl::slugify` returns.
-  It is the closest to us: it keeps Unicode letters, and it also keeps symbols and emoji.
+  It is the closest to us: it keeps Unicode letters, and it also keeps symbols and emoji. Its
+  rows with accented Latin letters run with `latin: :keep`, the mode that keeps them too.
 
   Not ported: the percent-encoding example, which `MishkaSlug` leaves to the caller as well.
 
@@ -30,7 +31,9 @@ defmodule MishkaSlug.Compat.SlugIntlTest do
     {"おはよう🐠", [], "おはよう🐠", "おはよう", @symbols},
     {"¡¡1≈3∞5=¶£9!!", [], "1≈3∞5=-£9", "1-3-5-9", @symbols},
     {"Hello 🐠", [], "hello-🐠", "hello", @symbols},
-    {"ame\u{0301}lie", [], "amélie", "amélie", nil}
+    {"ame\u{0301}lie", [latin: :keep], "amélie", "amélie", nil},
+    {"ame\u{0301}lie", [], "amélie", "amelie",
+     "`latin: :ascii` drops the accent, as WordPress does; the crate keeps it"}
   ]
 
   compat_cases(@cases)

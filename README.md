@@ -13,11 +13,13 @@
 
 ## 📖 What is Mishka Slug?
 
-`mishka_slug` turns a title into a URL slug in its own writing system. Persian stays Persian, Hindi stays Hindi, Japanese stays Japanese: nothing is transliterated. Most slug libraries either turn every title into ASCII or keep Unicode with a regex that deletes the vowel signs of Hindi and Thai and turns Arabic and Hebrew marks into hyphens. This one keeps whole words and takes out only what is unsafe or optional.
+`mishka_slug` turns a title into a URL slug in its own writing system. Persian stays Persian, Hindi stays Hindi, Japanese stays Japanese: nothing is transliterated. Latin text slugs the way WordPress slugs it, accents removed. Most slug libraries either turn every title into ASCII or keep Unicode with a regex that deletes the vowel signs of Hindi and Thai and turns Arabic and Hebrew marks into hyphens. This one keeps whole words and takes out only what is unsafe or optional.
 
 | Title | Slug |
 |---|---|
 | `Hello World: Getting Started with Elixir!` | `hello-world-getting-started-with-elixir` |
+| `Café Crème brûlée` | `cafe-creme-brulee` |
+| `snake_case_name` | `snake_case_name` |
 | `قیمت‌گذاری نرم‌افزار` | `قیمتگذاری-نرمافزار` |
 | `हिन्दी भाषा नमस्ते` | `हिन्दी-भाषा-नमस्ते` |
 | `สวัสดีชาวโลก` | `สวัสดีชาวโลก` |
@@ -32,6 +34,21 @@
 ```
 
 ```elixir
+MishkaSlug.slugify("Café Crème")
+#=> {:ok, "cafe-creme"}
+
+MishkaSlug.slugify("Café Crème", latin: :keep)
+#=> {:ok, "café-crème"}
+
+MishkaSlug.slugify("Straße", language: "de")
+#=> {:ok, "strasse"}
+
+MishkaSlug.slugify("snake_case_name")
+#=> {:ok, "snake_case_name"}
+
+MishkaSlug.slugify("snake_case_name", keep: [])
+#=> {:ok, "snake-case-name"}
+
 MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa", "en"])
 #=> {:ok, "آموزش-react-در-۱۰-دقیقه"}
 
@@ -47,10 +64,14 @@ MishkaSlug.slugify!("Привет, мир!")
 
 `slugify/2` is idempotent: a slug slugged again with the same options is unchanged. A CMS can re-slug an incoming URL parameter and redirect when the result differs, which also folds the variants people paste (uppercase, Arabic `ي` for Persian `ی`, decomposed accents).
 
-English and other Latin text:
+English and other Latin text, like WordPress:
 
-- Accents stay as typed: `Café Crème` gives `café-crème`, `Straße` gives `straße`.
-- `_` and `.` separate words unless they are in `:keep`: `a_b.c` gives `a-b-c`.
+- Accents are removed: `Café Crème` gives `cafe-creme`, `Tiếng Việt` gives `tieng-viet`, `Łódź` gives `lodz`, `Straße` gives `strase`.
+- The `:language` adds its own spelling: `de` writes `Straße Öl` as `strasse-oel`, `da` writes `Ærø` as `aeroe`, `ca` writes `Col·lecció` as `colleccio`, `sr` and `bs` write `Đorđe` as `djordje`.
+- `latin: :keep` leaves the accents as typed: `Café Crème` gives `café-crème`.
+- Only Latin changes: Greek, Cyrillic, Arabic and every other script keep their letters and marks.
+- `_` stays inside a word: `snake_case_name` gives `snake_case_name`, `__init__` gives `init`. `keep: []` makes it a break: `snake-case-name`.
+- `.` separates words unless it is in `:keep`: `a_b.c` gives `a_b-c`.
 - `&` is dropped (`Q&A` gives `q-a`), an apostrophe inside a word is removed (`don't` gives `dont`), and `1,000` gives `1-000`.
 - `:max_length` cuts at whole words: `hello world foo` with `max_length: 13` gives `hello-world`.
 
@@ -58,12 +79,13 @@ English and other Latin text:
 
 | Option | Default | What it does |
 |---|---|---|
-| `:language` | `nil` | The text's language. `tr` and `az` lowercase `I` to `ı`, and `fa`, `ur`, `ckb` fold Arabic `ي ى ك` to Persian `ی ک`. |
+| `:language` | `nil` | The text's language. `tr` and `az` lowercase `I` to `ı`, and `fa`, `ur`, `ckb` fold Arabic `ي ى ك` to Persian `ی ک`, and `de`, `da`, `ca`, `sr`, `bs` spell Latin accents their own way. |
 | `:locales` | `[]` | The site's languages, such as `["fa", "en"]`. Only their scripts, and Latin, are kept. `[]` keeps every script. |
 | `:mixed_scripts` | `:split` | A word that changes script (`pаypal` with a Cyrillic `а`): `:split` cuts it, `:reject` returns `{:error, :mixed_scripts}`. |
 | `:zwnj` | `:remove` | The Persian half-space: `:remove` glues the parts, `:separator` makes a word break. |
 | `:digits` | `:keep` | `:keep` leaves `۱۴۰۳` as typed, `:ascii` writes `1403`. |
-| `:keep` | `[]` | `.`, `_` or `~` kept inside a word, such as `v1.2`. Never at a word's ends. |
+| `:latin` | `:ascii` | `:ascii` removes Latin accents like WordPress (`café` to `cafe`, `ß` to `s`, or `ss` with `language: "de"`); `:keep` leaves them as typed. Other scripts never change. |
+| `:keep` | `["_"]` | `.`, `_` or `~` kept inside a word, such as `snake_case` or `v1.2`. Never at a word's ends. The list replaces the default: `[]` makes `_` a break, `[".", "_"]` keeps both. |
 | `:max_length` | `nil` | The longest slug in code points. Whole words while they fit; a long first word is cut between graphemes. |
 
 Options are checked by `MishkaSlug.Options` (a `guarded_struct`). An unknown option or a value outside the accepted ones raises `ArgumentError`.
@@ -95,7 +117,7 @@ create :create do
           into: :slug,
           language: :language,
           locales: {MyApp.Sites, :languages, []},
-          keep: ["."]}
+          keep: [".", "_"]}
 end
 ```
 

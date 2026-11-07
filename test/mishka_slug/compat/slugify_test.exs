@@ -19,6 +19,7 @@ defmodule MishkaSlug.Compat.SlugifyTest do
   | Every script but Latin | `slugify` transliterates to ASCII (`slugify` writes `ni-hao` for Han); we keep the script. |
   | `truncate` | Both stop at a whole word; when the first word is too long `slugify` gives `nil`, we cut it. |
   | Khmer and Lao | The zero-width space between words is removed, not turned into a break. |
+  | `_` | `slugify` makes `_` a separator; we keep it inside a word unless `keep: []`. |
   """
 
   @ascii "slugify writes ASCII for this script; we keep the script's own letters"
@@ -34,7 +35,9 @@ defmodule MishkaSlug.Compat.SlugifyTest do
     {"  Hello,\t World!\n", [], "hello-world", "hello-world", nil},
     {"hello-world", [], "hello-world", "hello-world", nil},
     {"--Hello--World--", [], "hello-world", "hello-world", nil},
-    {"__HELLO__WORLD__", [], "hello-world", "hello-world", nil},
+    {"__HELLO__WORLD__", [], "hello-world", "hello__world",
+     "slugify makes `_` a separator; we keep it inside a word, as WordPress does"},
+    {"__HELLO__WORLD__", [keep: []], "hello-world", "hello-world", nil},
     {"test,is a.test", [keep: ["."]], "test-is-a.test", "test-is-a.test", nil},
     {"test,is a.test", [], "test-is-a-test", "test-is-a-test", nil},
     {"It's a small world", [max_length: 5], "its-a", "its-a", nil},
@@ -65,7 +68,9 @@ defmodule MishkaSlug.Compat.SlugifyTest do
     {"வணக்கம், உலகம்", [], "vnnkkm-ulkm", "வணக்கம்-உலகம்", @ascii},
     {"హలో, ప్రపంచం", [], "hloo-prpncn", "హలో-ప్రపంచం", @ascii},
     {"สวัสดีชาวโลก", [], "swasdiichaawolk", "สวัสดีชาวโลก", @ascii},
-    {"Chào thế giới", [], "chao-the-gioi", "chào-thế-giới", @ascii},
+    {"Chào thế giới", [], "chao-the-gioi", "chao-the-gioi", nil},
+    {"Chào thế giới", [latin: :keep], "chao-the-gioi", "chào-thế-giới",
+     "`latin: :keep` leaves Vietnamese letters as typed; slugify writes ASCII"},
     {"העלא וועלט", [], "hl-vvlt", "העלא-וועלט", @ascii}
   ]
 

@@ -53,7 +53,7 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
         changes do
           change {MishkaSlug.Change, from: :title, into: :slug, language: :language,
-                  locales: {MyApp.Sites, :languages, []}, keep: ["."]}
+                  locales: {MyApp.Sites, :languages, []}, keep: [".", "_"]}
         end
 
     The change reads `:from` from the action's arguments or changes and does nothing when it is

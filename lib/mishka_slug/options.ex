@@ -28,7 +28,9 @@ defmodule MishkaSlug.Options do
 
     field :digits, :keep | :ascii, default: :keep, derives: "validate(enum=Atom[keep::ascii])"
 
-    field :keep, [String.t()], default: [], validator: {__MODULE__, :validate_keep}
+    field :latin, :ascii | :keep, default: :ascii, derives: "validate(enum=Atom[ascii::keep])"
+
+    field :keep, [String.t()], default: ["_"], validator: {__MODULE__, :validate_keep}
 
     field :max_length, pos_integer() | nil,
       default: nil,

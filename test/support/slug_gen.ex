@@ -201,6 +201,7 @@ defmodule MishkaSlug.SlugGen do
       mixed_scripts: member_of([:split, :reject]),
       zwnj: member_of([:remove, :separator]),
       digits: member_of([:keep, :ascii]),
+      latin: member_of([:ascii, :keep]),
       keep: keep(),
       max_length: one_of([constant(nil), integer(1..40)])
     })
