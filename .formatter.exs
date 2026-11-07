@@ -1,4 +1,8 @@
-# Used by "mix format"
+# SPDX-FileCopyrightText: 2026 Mishka Group contributors <https://github.com/mishka-group/mishka_slug/graphs/contributors>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 [
-  inputs: ["{mix,.formatter}.exs", "{config,lib,test}/**/*.{ex,exs}"]
+  import_deps: [:guarded_struct, :ash],
+  inputs: ["{mix,.formatter}.exs", "{lib,test}/**/*.{ex,exs}"]
 ]
