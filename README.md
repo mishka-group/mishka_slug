@@ -49,6 +49,12 @@ MishkaSlug.slugify("snake_case_name")
 MishkaSlug.slugify("snake_case_name", keep: [])
 #=> {:ok, "snake-case-name"}
 
+MishkaSlug.slugify("__init__ my_post_")
+#=> {:ok, "__init__-my_post_"}
+
+MishkaSlug.slugify("__init__ my_post_", trim_kept: true)
+#=> {:ok, "init-my_post"}
+
 MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa", "en"])
 #=> {:ok, "آموزش-react-در-۱۰-دقیقه"}
 
@@ -70,7 +76,7 @@ English and other Latin text, like WordPress:
 - The `:language` adds its own spelling: `de` writes `Straße Öl` as `strasse-oel`, `da` writes `Ærø` as `aeroe`, `ca` writes `Col·lecció` as `colleccio`, `sr` and `bs` write `Đorđe` as `djordje`.
 - `latin: :keep` leaves the accents as typed: `Café Crème` gives `café-crème`.
 - Only Latin changes: Greek, Cyrillic, Arabic and every other script keep their letters and marks.
-- `_` stays inside a word: `snake_case_name` gives `snake_case_name`, `__init__` gives `init`. `keep: []` makes it a break: `snake-case-name`.
+- `_` stays in a word like WordPress: `snake_case_name` gives `snake_case_name`, and so does `__init__` (`__init__`). `keep: []` makes it a break: `snake-case-name`. `trim_kept: true` removes kept characters at a word's ends: `__init__` gives `init`.
 - `.` separates words unless it is in `:keep`: `a_b.c` gives `a_b-c`.
 - `&` is dropped (`Q&A` gives `q-a`), an apostrophe inside a word is removed (`don't` gives `dont`), and `1,000` gives `1-000`.
 - `:max_length` cuts at whole words: `hello world foo` with `max_length: 13` gives `hello-world`.
@@ -85,7 +91,8 @@ English and other Latin text, like WordPress:
 | `:zwnj` | `:remove` | The Persian half-space: `:remove` glues the parts, `:separator` makes a word break. |
 | `:digits` | `:keep` | `:keep` leaves `۱۴۰۳` as typed, `:ascii` writes `1403`. |
 | `:latin` | `:ascii` | `:ascii` removes Latin accents like WordPress (`café` to `cafe`, `ß` to `s`, or `ss` with `language: "de"`); `:keep` leaves them as typed. Other scripts never change. |
-| `:keep` | `["_"]` | `.`, `_` or `~` kept inside a word, such as `snake_case` or `v1.2`. Never at a word's ends. The list replaces the default: `[]` makes `_` a break, `[".", "_"]` keeps both. |
+| `:keep` | `["_"]` | `.`, `_` or `~` kept inside a word, such as `snake_case` or `v1.2`. The list replaces the default: `[]` makes `_` a break, `[".", "_"]` keeps both. |
+| `:trim_kept` | `false` | `false` keeps `_`, `.` and `~` at a word's ends like WordPress (`__init__`, `my_post_`); `true` removes them (`init`, `my_post`). |
 | `:max_length` | `nil` | The longest slug in code points. Whole words while they fit; a long first word is cut between graphemes. |
 
 Options are checked by `MishkaSlug.Options` (a `guarded_struct`). An unknown option or a value outside the accepted ones raises `ArgumentError`.

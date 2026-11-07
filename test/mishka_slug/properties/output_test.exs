@@ -76,6 +76,26 @@ defmodule MishkaSlug.Properties.OutputTest do
     end
   end
 
+  property "trim_kept removes kept characters at word ends; without it a slug is still safe" do
+    check all(
+            text <- SlugGen.text(),
+            opts <- SlugGen.options(locales: :none),
+            max_runs: @runs
+          ) do
+      with {:ok, slug} <- slug(text, Keyword.put(opts, :trim_kept, true)) do
+        for word <- String.split(slug, "-"), graphemes = String.graphemes(word) do
+          refute String.starts_with?(hd(graphemes), opts[:keep])
+          refute String.starts_with?(List.last(graphemes), opts[:keep])
+        end
+      end
+
+      with {:ok, kept_slug} <- slug(text, Keyword.put(opts, :trim_kept, false)),
+           {:ok, ^kept_slug} <- slug(kept_slug, Keyword.put(opts, :trim_kept, false)) do
+        refute kept_slug in [".", ".."]
+      end
+    end
+  end
+
   property "with locales, no word starts with a combining mark left by a dropped letter" do
     check all(
             text <- SlugGen.text(),

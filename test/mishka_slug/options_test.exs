@@ -136,17 +136,50 @@ defmodule MishkaSlug.OptionsTest do
   describe ":keep" do
     test "keeps `_` inside a word by default, like WordPress" do
       assert {:ok, "snake_case_name"} = MishkaSlug.slugify("snake_case_name")
-      assert {:ok, "init-a_b-c"} = MishkaSlug.slugify("__init__ a_b.c")
+      assert {:ok, "__init__-a_b-c"} = MishkaSlug.slugify("__init__ a_b.c")
     end
 
     test "an empty list makes `_` a word break" do
       assert {:ok, "snake-case-name"} = MishkaSlug.slugify("snake_case_name", keep: [])
     end
 
-    test "keeps the listed characters inside a word but never at its ends" do
-      assert {:ok, "v1.2"} = MishkaSlug.slugify("v1.2 .. ...", keep: ["."])
-      assert {:ok, "end"} = MishkaSlug.slugify("end.", keep: ["."])
-      assert {:error, :empty} = MishkaSlug.slugify("...", keep: ["."])
+    test "keeps the listed characters at a word's ends by default, like WordPress" do
+      assert {:ok, "v1.2-..-..."} = MishkaSlug.slugify("v1.2 .. ...", keep: ["."])
+      assert {:ok, "end."} = MishkaSlug.slugify("end.", keep: ["."])
+      assert {:ok, "~tilde~"} = MishkaSlug.slugify("~tilde~", keep: ["~"])
+    end
+
+    test "a slug that is only `.` or `..` is refused" do
+      assert {:error, :empty} = MishkaSlug.slugify(".", keep: ["."])
+      assert {:error, :empty} = MishkaSlug.slugify("..", keep: ["."])
+      assert {:error, :empty} = MishkaSlug.slugify("..", keep: ["."], trim_kept: true)
+      assert {:error, :empty} = MishkaSlug.slugify("...", keep: ["."], trim_kept: true)
+    end
+
+    test "a cut that leaves only dots is refused" do
+      assert {:error, :empty} = MishkaSlug.slugify("..a", keep: ["."], max_length: 2)
+    end
+  end
+
+  describe ":trim_kept" do
+    test "false keeps `_` at the ends of a word, like WordPress" do
+      assert {:ok, "__init__"} = MishkaSlug.slugify("__init__")
+      assert {:ok, "_draft-post"} = MishkaSlug.slugify("_draft post")
+      assert {:ok, "my_post_"} = MishkaSlug.slugify("my_post_")
+      assert {:ok, "_-_-_"} = MishkaSlug.slugify("_ _ _")
+      assert {:ok, "_-_-_"} = MishkaSlug.slugify("_-_-_")
+    end
+
+    test "true removes kept characters at the ends of a word" do
+      assert {:ok, "init"} = MishkaSlug.slugify("__init__", trim_kept: true)
+      assert {:ok, "draft-post"} = MishkaSlug.slugify("_draft post", trim_kept: true)
+      assert {:ok, "my_post"} = MishkaSlug.slugify("my_post_", trim_kept: true)
+      assert {:error, :empty} = MishkaSlug.slugify("_ _ _", trim_kept: true)
+      assert {:ok, "end"} = MishkaSlug.slugify("end.", keep: ["."], trim_kept: true)
+    end
+
+    test "must be a boolean" do
+      assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", trim_kept: "yes") end
     end
 
     test "refuses characters that are not safe in a URL" do

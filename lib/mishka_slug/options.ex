@@ -32,6 +32,8 @@ defmodule MishkaSlug.Options do
 
     field :keep, [String.t()], default: ["_"], validator: {__MODULE__, :validate_keep}
 
+    field :trim_kept, boolean(), default: false, derives: "validate(boolean)"
+
     field :max_length, pos_integer() | nil,
       default: nil,
       derives: "validate(optional=[integer, min_len=1])"

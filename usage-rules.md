@@ -66,6 +66,7 @@ All options are optional. An unknown option, or a value outside the accepted one
 | `:digits` | `:keep` | `:ascii` when `۱۴۰۳` and `٢٠٢٥` must become `1403` and `2025`. |
 | `:keep` | `["_"]` | A list of `"."`, `"_"`, `"~"` kept inside a word. It replaces the default. |
 | `:latin` | `:ascii` | `:keep` to leave accents as typed (`café`). |
+| `:trim_kept` | `false` | `true` to remove kept characters at a word's ends (`__init__` to `init`). The default keeps them like WordPress. |
 | `:max_length` | `nil` | The column has a limit. Counted in code points; whole words are kept. |
 
 Verified examples:
@@ -116,6 +117,10 @@ MishkaSlug.slugify("snake_case_name", keep: [])     #=> {:ok, "snake-case-name"}
 MishkaSlug.slugify("v1.2 release", keep: ["."])     #=> {:ok, "v1.2-release"}
 MishkaSlug.slugify("v1.2 release")                  #=> {:ok, "v1-2-release"}
 MishkaSlug.slugify("snake_case_name", keep: ["."])  #=> {:ok, "snake-case-name"}
+
+# :trim_kept
+MishkaSlug.slugify("__init__ my_post_")                    #=> {:ok, "__init__-my_post_"}
+MishkaSlug.slugify("__init__ my_post_", trim_kept: true)   #=> {:ok, "init-my_post"}
 
 # :max_length
 MishkaSlug.slugify("hello world foo", max_length: 13) #=> {:ok, "hello-world"}

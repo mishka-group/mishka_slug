@@ -203,6 +203,7 @@ defmodule MishkaSlug.SlugGen do
       digits: member_of([:keep, :ascii]),
       latin: member_of([:ascii, :keep]),
       keep: keep(),
+      trim_kept: boolean(),
       max_length: one_of([constant(nil), integer(1..40)])
     })
     |> map(&Map.to_list/1)

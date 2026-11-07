@@ -38,7 +38,9 @@ defmodule MishkaSlug.Compat.AgentFirstSlugTest do
     {"Ubuntu 16.04", [keep: ["."]], "ubuntu-16.04", "ubuntu-16.04", nil},
     {"T.U.S.F.G.E.3.0.8", [keep: ["."]], "t-u-s-f-g-e-3.0.8", "t.u.s.f.g.e.3.0.8",
      "the crate keeps only dots between digits; `keep: [\".\"]` keeps a dot inside any word"},
-    {".18 increased ! ", [keep: ["."]], "18-increased", "18-increased", nil},
+    {".18 increased ! ", [keep: ["."], trim_kept: true], "18-increased", "18-increased", nil},
+    {".18 increased ! ", [keep: ["."]], "18-increased", ".18-increased",
+     "the crate keeps a dot only between digits; we keep it at the start like WordPress"},
     {"Cafe 世界 42", [], "cafe-42", "cafe-世界-42", @ascii_only},
     {"Hello 世界", [], "hello", "hello-世界", @ascii_only},
     {"Chapter \u{2163}", [], "chapter", "chapter-iv",
@@ -51,7 +53,7 @@ defmodule MishkaSlug.Compat.AgentFirstSlugTest do
   compat_cases(@cases)
 
   @alphabet String.graphemes("aA1.. -_İ١٢\u{301}\u{E48}ไมन्\u{93E}ǅßẞΣ\u{345}ΐ")
-  @option_sets [
+  @base_option_sets [
     [],
     [language: "tr"],
     [language: "el"],
@@ -63,6 +65,9 @@ defmodule MishkaSlug.Compat.AgentFirstSlugTest do
     [max_length: 5],
     [language: "el", keep: ["."], max_length: 3]
   ]
+  @option_sets for opts <- @base_option_sets,
+                   trim? <- [false, true],
+                   do: [trim_kept: trim?] ++ opts
 
   test "random strings of marks, digits, sigma, titlecase and dots give a stable safe slug" do
     :rand.seed(:exsss, {1, 2, 3})
@@ -77,7 +82,13 @@ defmodule MishkaSlug.Compat.AgentFirstSlugTest do
             assert slug =~ ~r/\A[\p{L}\p{M}\p{Nd}._~-]+\z/u,
                    "#{inspect(input)} -> #{inspect(slug)}"
 
-            refute slug =~ ~r/\A[-._~]|[-._~]\z|--/, "#{inspect(input)} -> #{inspect(slug)}"
+            refute slug =~ ~r/\A-|-\z|--/, "#{inspect(input)} -> #{inspect(slug)}"
+            refute slug in [".", ".."], "#{inspect(input)} -> #{inspect(slug)}"
+
+            if opts[:trim_kept] do
+              refute slug =~ ~r/\A[._~]|[._~]\z|-[._~]|[._~]-/,
+                     "#{inspect(input)} -> #{inspect(slug)}"
+            end
 
             assert MishkaSlug.slugify(slug, opts) == {:ok, slug},
                    "#{inspect(input)} #{inspect(opts)} -> #{inspect(slug)}"
