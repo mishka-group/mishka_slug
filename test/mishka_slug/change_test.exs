@@ -70,6 +70,20 @@ defmodule MishkaSlug.ChangeTest do
     assert {:ok, "ışık"} = MishkaSlug.slugify("IŞIK", Keyword.put(opts, :latin, :keep))
   end
 
+  test "a script_resolver passes through the change into slugify" do
+    resolver = {MyApp.LocaleScripts, :scripts, []}
+    changeset = Ash.Changeset.for_create(Post, :create, %{title: "x"})
+
+    assert {:ok, opts} =
+             MishkaSlug.Change.init(from: :title, locales: ["tt"], script_resolver: resolver)
+
+    opts = MishkaSlug.Change.slug_options(opts, changeset)
+    assert opts[:script_resolver] == resolver
+    assert {:ok, "сәлам"} = MishkaSlug.slugify("Сәлам", opts)
+    assert {:error, message} = MishkaSlug.Change.init(from: :title, script_resolver: :nope)
+    assert message =~ "script_resolver"
+  end
+
   test "invalid change options are refused when the change is set up" do
     assert {:error, message} = MishkaSlug.Change.init(from: :title, keep: ["?"])
     assert message =~ "keep"

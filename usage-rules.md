@@ -37,6 +37,7 @@ MishkaSlug.slugify!("Привет, мир!")
 | Result | When |
 |---|---|
 | `{:error, :empty}` | nothing is left: `""`, `"😀🚀"`, `"---"` |
+| `{:error, :no_allowed_script}` | the text has letters or digits, but none is in a script of `:locales`: `"قیمت"` with `locales: ["en"]` |
 | `{:error, :invalid_utf8}` | the binary is not UTF-8 |
 | `{:error, :mixed_scripts}` | a word mixes scripts and `mixed_scripts: :reject` is set |
 | `{:error, {:unknown_locale, "xx"}}` | a code in `:locales` is not known |
@@ -51,7 +52,7 @@ case MishkaSlug.slugify(title, locales: ["fa", "en"]) do
 end
 ```
 
-`:empty` is the usual one. Ask the user for another title, or build a slug from an id (`"post-" <> id`). `MishkaSlug.Messages.error/1` turns any reason into a translated sentence for a form (see the configuration sub-rules).
+`:empty` is the usual one. `:no_allowed_script` means the text has letters, just not in a script the site allows: tell the user to write with the site's languages (for example Latin letters), not that the text is blank. Ask the user for another title, or build a slug from an id (`"post-" <> id`). `MishkaSlug.Messages.error/1` turns any reason into a translated sentence for a form (see the configuration sub-rules).
 
 ## Options
 
@@ -60,10 +61,11 @@ All options are optional. An unknown option, or a value outside the accepted one
 | Option | Default | Change it when |
 |---|---|---|
 | `:language` | `nil` | You know the text's language. `"fa"`, `"ur"`, `"ckb"` fold Arabic `ي ى ك` into Persian `ی ک`; `"tr"`, `"az"` lowercase `I` to `ı`; `"de"`, `"da"`, `"ca"`, `"sr"`, `"bs"` spell Latin letters their own way. |
-| `:locales` | `[]` | The site has known languages. Only their scripts, and Latin, are kept. `[]` keeps every script. |
+| `:locales` | `[]` | The site has known languages. Only their scripts, and Latin, are kept. `[]` keeps every script. A script subtag picks the script (`"sr-Latn"`). |
+| `:script_resolver` | `nil` | A `:locales` code is not in the built-in table, or the host already resolves languages (CLDR). `{module, function, args}`, called as `apply(module, function, [code \| args])`, returns `{:ok, [script]}` or `:error`. App-wide: `config :mishka_slug, :script_resolver, {M, F, A}`; the option wins. |
 | `:mixed_scripts` | `:split` | `:reject` when a word that mixes scripts (a homoglyph attempt) must be refused, not cut. |
 | `:zwnj` | `:remove` | `:separator` when the Persian half-space should be a word break. |
-| `:digits` | `:keep` | `:ascii` when `۱۴۰۳` and `٢٠٢٥` must become `1403` and `2025`. |
+| `:digits` | `:keep` | `:ascii` when `۱۴۰۳` and `٢٠٢٥` must become `1403` and `2025`. With `:keep`, `:locales` drops a digit of a script it does not allow, like a letter. |
 | `:keep` | `["_"]` | A list of `"."`, `"_"`, `"~"` kept inside a word. It replaces the default. |
 | `:latin` | `:ascii` | `:keep` to leave accents as typed (`café`). |
 | `:trim_kept` | `false` | `true` to remove kept characters at a word's ends (`__init__` to `init`). The default keeps them like WordPress. |
@@ -90,11 +92,25 @@ MishkaSlug.slugify("كتاب جديد", language: "ar")
 MishkaSlug.slugify("سنة ٢٠٢٥ كتاب", digits: :ascii)
 #=> {:ok, "سنة-2025-كتاب"}
 
+# A digit of a script outside the locales is dropped, unless :ascii writes it as 0-9 first
+MishkaSlug.slugify("سال ۱۴۰۳", locales: ["en"])
+#=> {:error, :no_allowed_script}
+MishkaSlug.slugify("سال ۱۴۰۳", locales: ["en"], digits: :ascii)
+#=> {:ok, "1403"}
+
 # Site languages: Persian and English stay, other scripts are dropped
 MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa", "en"])
 #=> {:ok, "آموزش-react-در-۱۰-دقیقه"}
 MishkaSlug.slugify("Привет мир Hello", locales: ["en"])
 #=> {:ok, "hello"}
+
+# A script subtag picks the script; a resolver knows codes the built-in table does not
+MishkaSlug.slugify("Zdravo Здраво", locales: ["sr-Latn"])
+#=> {:ok, "zdravo"}
+MishkaSlug.slugify("Сәлам", locales: ["tt"])
+#=> {:error, {:unknown_locale, "tt"}}
+MishkaSlug.slugify("Сәлам", locales: ["tt"], script_resolver: {MyApp.LocaleScripts, :scripts, []})
+#=> {:ok, "сәлам"}
 
 # Latin
 MishkaSlug.slugify("Café Crème")                    #=> {:ok, "cafe-creme"}
@@ -131,6 +147,8 @@ MishkaSlug.slugify("Q&A don't")                     #=> {:ok, "q-a-dont"}
 MishkaSlug.slugify("../etc/passwd")                 #=> {:ok, "etc-passwd"}
 MishkaSlug.slugify("pаypal", mixed_scripts: :reject) #=> {:error, :mixed_scripts}
 ```
+
+`MyApp.LocaleScripts` above is a resolver like the one in the configuration sub-rules, built on `Localize.LanguageTag` (CLDR) and `MishkaSlug.Scripts.from_iso15924/1`.
 
 `keep` replaces the default, so `keep: ["."]` makes `_` a break again. Write `keep: [".", "_"]` to keep both. Only `"."`, `"_"` and `"~"` are accepted; `"-"` raises.
 

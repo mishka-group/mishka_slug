@@ -18,6 +18,10 @@ defmodule MishkaSlug.Options do
 
     field :locales, [String.t()], default: [], derives: "validate(list, each=[string])"
 
+    field :script_resolver, {module(), atom(), list()} | nil,
+      default: nil,
+      validator: {__MODULE__, :validate_script_resolver}
+
     field :mixed_scripts, :split | :reject,
       default: :split,
       derives: "validate(enum=Atom[split::reject])"
@@ -51,6 +55,18 @@ defmodule MishkaSlug.Options do
   end
 
   def validate_keep(field, _chars), do: {:error, field, "must be a list of characters"}
+
+  @doc false
+  @spec validate_script_resolver(atom(), term()) ::
+          {:ok, atom(), term()} | {:error, atom(), String.t()}
+  def validate_script_resolver(field, nil), do: {:ok, field, nil}
+
+  def validate_script_resolver(field, {module, function, args} = resolver)
+      when is_atom(module) and is_atom(function) and is_list(args),
+      do: {:ok, field, resolver}
+
+  def validate_script_resolver(field, _resolver),
+    do: {:error, field, "must be {module, function, args}"}
 
   @doc """
   Validates `opts` and returns them as a keyword list with every default filled in.

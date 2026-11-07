@@ -27,6 +27,30 @@ defmodule MishkaSlug.ScriptsTest do
     assert {:ok, :any} = Scripts.for_locales([])
   end
 
+  test "a digit of a script follows the allow-list like a letter" do
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("سال ۱۴۰۳", locales: ["en"])
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("٢٠٢٥ १२३", locales: ["en"])
+    assert {:ok, "2025-iphone"} = MishkaSlug.slugify("2025 iphone ۱۵", locales: ["en"])
+    assert {:ok, "abc-१२३"} = MishkaSlug.slugify("abc ١٢ १२३", locales: ["hi"])
+    assert {:ok, "سال۱۴۰۳"} = MishkaSlug.slugify("سال۱۴۰۳", locales: ["fa"])
+    assert {:ok, "a"} = MishkaSlug.slugify("a ༢༣", locales: ["en"])
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("\u{F20}\u{300}", locales: ["en"])
+    assert {:error, :no_allowed_script} = MishkaSlug.slugify("\u{6F1}\u{300}", locales: ["en"])
+  end
+
+  test "digits: :ascii writes a digit as 0-9 before the allow-list, so it is kept" do
+    assert {:ok, "1403"} = MishkaSlug.slugify("سال ۱۴۰۳", locales: ["en"], digits: :ascii)
+
+    assert {:ok, "1403-123-23"} =
+             MishkaSlug.slugify("۱۴۰۳ १२३ ༢༣", locales: ["en"], digits: :ascii)
+  end
+
+  test "a digit of an allowed script never makes a word mixed" do
+    assert {:ok, "iphone۱۵"} = MishkaSlug.slugify("iphone۱۵", mixed_scripts: :reject)
+    assert {:ok, "iphone۱۵"} = MishkaSlug.slugify("iphone۱۵", locales: ["fa"])
+    assert {:ok, "iphone"} = MishkaSlug.slugify("iphone۱۵", locales: ["en"])
+  end
+
   test "a mark of another script never rides on a letter, whatever latin is set to" do
     opts = [
       keep: [],

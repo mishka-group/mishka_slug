@@ -64,6 +64,9 @@ MishkaSlug.slugify("كتاب يك", language: "fa")
 MishkaSlug.slugify("😀🚀")
 #=> {:error, :empty}
 
+MishkaSlug.slugify("قیمت", locales: ["en"])
+#=> {:error, :no_allowed_script}
+
 MishkaSlug.slugify!("Привет, мир!")
 #=> "привет-мир"
 ```
@@ -86,16 +89,35 @@ English and other Latin text, like WordPress:
 | Option | Default | What it does |
 |---|---|---|
 | `:language` | `nil` | The text's language. `tr` and `az` lowercase `I` to `ı`, and `fa`, `ur`, `ckb` fold Arabic `ي ى ك` to Persian `ی ک`, and `de`, `da`, `ca`, `sr`, `bs` spell Latin accents their own way. |
-| `:locales` | `[]` | The site's languages, such as `["fa", "en"]`. Only their scripts, and Latin, are kept. `[]` keeps every script. |
+| `:locales` | `[]` | The site's languages, such as `["fa", "en"]`. Only their scripts, and Latin, are kept, letters and digits alike: `locales: ["en"]` drops `۱۴۰۳`. `[]` keeps every script. A script subtag picks the script (`sr-Latn` is Latin). |
+| `:script_resolver` | `nil` | `{module, function, args}` that gives the scripts of a `:locales` code the built-in table does not know (see below). Also settable app-wide with `config :mishka_slug, :script_resolver, {M, F, A}`; the option wins. |
 | `:mixed_scripts` | `:split` | A word that changes script (`pаypal` with a Cyrillic `а`): `:split` cuts it, `:reject` returns `{:error, :mixed_scripts}`. |
 | `:zwnj` | `:remove` | The Persian half-space: `:remove` glues the parts, `:separator` makes a word break. |
-| `:digits` | `:keep` | `:keep` leaves `۱۴۰۳` as typed, `:ascii` writes `1403`. |
+| `:digits` | `:keep` | `:keep` leaves `۱۴۰۳` as typed, `:ascii` writes `1403`. A digit of a script outside `:locales` is dropped, unless `:ascii` writes it as `0-9` first. |
 | `:latin` | `:ascii` | `:ascii` removes Latin accents like WordPress (`café` to `cafe`, `ß` to `s`, or `ss` with `language: "de"`); `:keep` leaves them as typed. Other scripts never change. |
 | `:keep` | `["_"]` | `.`, `_` or `~` kept inside a word, such as `snake_case` or `v1.2`. The list replaces the default: `[]` makes `_` a break, `[".", "_"]` keeps both. |
 | `:trim_kept` | `false` | `false` keeps `_`, `.` and `~` at a word's ends like WordPress (`__init__`, `my_post_`); `true` removes them (`init`, `my_post`). |
 | `:max_length` | `nil` | The longest slug in code points. Whole words while they fit; a long first word is cut between graphemes. |
 
 Options are checked by `MishkaSlug.Options` (a `guarded_struct`). An unknown option or a value outside the accepted ones raises `ArgumentError`.
+
+The built-in table knows about 85 languages. For any other code, or to follow CLDR, plug in a resolver. It is called as `apply(module, function, [code | args])` and returns `{:ok, [script]}` or `:error` (which gives `{:error, {:unknown_locale, code}}`). `MishkaSlug.Scripts.from_iso15924/1` turns a CLDR script code (`"Arab"`, `"Cyrl"`, `"Jpan"`) into the script atoms. With the [`localize`](https://hex.pm/packages/localize) package:
+
+```elixir
+defmodule MyApp.LocaleScripts do
+  def scripts(code) do
+    with {:ok, tag} <- Localize.LanguageTag.parse(code),
+         {:ok, tag} <- Localize.LanguageTag.add_likely_subtags(tag) do
+      MishkaSlug.Scripts.from_iso15924(tag.script)
+    else
+      _ -> :error
+    end
+  end
+end
+
+MishkaSlug.slugify("Сәлам", locales: ["tt"], script_resolver: {MyApp.LocaleScripts, :scripts, []})
+#=> {:ok, "сәлам"}
+```
 
 Japanese (Han with kana), Korean (Hangul with Han) and Chinese with Bopomofo count as one script, so their words are never cut.
 

@@ -60,9 +60,18 @@ defmodule MishkaSlug do
       `de`, `da`, `ca`, `sr` and `bs` picks how `latin: :ascii` spells their letters.
 
     * `:locales` - `[String.t()]`, default `[]`. The site's languages (`["fa", "en"]`). Only
-      letters of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps every
-      script. Without a `:language`, a Persian-family locale without `ar` turns on the Persian
-      fold.
+      letters and digits of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps
+      every script. Without a `:language`, a Persian-family locale without `ar` turns on the Persian
+      fold. A script subtag picks the script (`"sr-Latn"` keeps Latin only); an unknown language
+      is `{:error, {:unknown_locale, code}}` unless a `:script_resolver` knows it.
+
+    * `:script_resolver` - `{module, function, args} | nil`, default `nil`. Decides the scripts of
+      each `:locales` code instead of the built-in table: called as
+      `apply(module, function, [code | args])`, it returns `{:ok, [script]}` (atoms such as
+      `:arabic`, `:latin`, `:cyrillic`, `:han`; `MishkaSlug.Scripts.from_iso15924/1` turns a CLDR
+      code like `"Arab"` into them) or `:error`, which gives `{:error, {:unknown_locale, code}}`.
+      `nil` uses the `:script_resolver` of the `:mishka_slug` application config, and without one
+      the built-in table.
 
     * `:mixed_scripts` - `:split | :reject`, default `:split`. What happens to a word that
       changes script, like `pаypal` with a Cyrillic `а`: `:split` cuts it at the change,
@@ -73,7 +82,8 @@ defmodule MishkaSlug do
       (`قیمت-گذاری`).
 
     * `:digits` - `:keep | :ascii`, default `:keep`. `:keep` leaves digits as typed (`۱۴۰۳`);
-      `:ascii` writes every decimal digit as `0-9` (`1403`).
+      `:ascii` writes every decimal digit as `0-9` (`1403`). With `:keep`, a digit of a script
+      outside `:locales` is dropped like a letter; `:ascii` writes it as `0-9` first, so it stays.
 
     * `:latin` - `:ascii | :keep`, default `:ascii`. What happens to accented Latin letters.
       `:ascii` writes them as WordPress's `remove_accents` does: a letter is decomposed and its
@@ -106,7 +116,12 @@ defmodule MishkaSlug do
   alias MishkaSlug.{Options, Scripts}
 
   @typedoc "Why no slug could be made."
-  @type reason :: :empty | :invalid_utf8 | :mixed_scripts | {:unknown_locale, String.t()}
+  @type reason ::
+          :empty
+          | :no_allowed_script
+          | :invalid_utf8
+          | :mixed_scripts
+          | {:unknown_locale, String.t()}
 
   @persian_family ~w(fa ur ckb)
 
@@ -117,6 +132,7 @@ defmodule MishkaSlug do
   @digit ~r/\p{Nd}/u
   @latin ~r/\p{sc=Latin}\p{M}*/u
   @mark ~r/\p{M}/u
+  @alphanumeric ~r/[\p{L}\p{Nd}]/u
   @catalan_dot ~r/l\x{00B7}(?=l)/u
 
   @latin_letters %{
@@ -163,8 +179,9 @@ defmodule MishkaSlug do
   @doc """
   Makes a slug from `text`.
 
-  Returns `{:ok, slug}`, or `{:error, reason}` when nothing is left (`:empty`), the text is not
-  UTF-8 (`:invalid_utf8`), a word mixes scripts under `mixed_scripts: :reject`, or a locale is not
+  Returns `{:ok, slug}`, or `{:error, reason}` when nothing is left (`:empty`), the text had
+  letters or digits but none is in a script of `:locales` (`:no_allowed_script`, e.g. Persian
+  text with `locales: ["en"]`), the text is not UTF-8 (`:invalid_utf8`), a word mixes scripts under `mixed_scripts: :reject`, or a locale is not
   known (`{:unknown_locale, code}`). Invalid options raise `ArgumentError`.
 
       iex> MishkaSlug.slugify("كتاب يك ۱۲۳", language: "fa", digits: :ascii)
@@ -172,13 +189,19 @@ defmodule MishkaSlug do
 
       iex> MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa"])
       {:ok, "آموزش-react-در-۱۰-دقیقه"}
+
+      iex> MishkaSlug.slugify("قیمت", locales: ["en"])
+      {:error, :no_allowed_script}
+
+      iex> MishkaSlug.slugify("!!!", locales: ["en"])
+      {:error, :empty}
   """
   @spec slugify(String.t(), keyword()) :: {:ok, String.t()} | {:error, reason()}
   def slugify(text, opts \\ []) when is_binary(text) do
     opts = Options.validate!(opts)
 
     with :ok <- utf8(text),
-         {:ok, allowed} <- Scripts.for_locales(opts[:locales]),
+         {:ok, allowed} <- Scripts.for_locales(opts[:locales], opts[:script_resolver]),
          {:ok, words} <- text |> clean(opts) |> words(opts) |> split(allowed, opts) do
       words
       |> truncate(opts)
@@ -311,13 +334,24 @@ defmodule MishkaSlug do
   end
 
   defp split(words, allowed, opts) do
-    Enum.reduce_while(words, {:ok, []}, fn word, {:ok, acc} ->
+    words
+    |> Enum.reduce_while({:ok, []}, fn word, {:ok, acc} ->
       case Scripts.split(word, allowed, opts[:mixed_scripts]) do
         {:ok, parts} -> {:cont, {:ok, acc ++ Enum.map(parts, &trim(&1, opts))}}
         error -> {:halt, error}
       end
     end)
+    |> no_allowed_script(words)
   end
+
+  defp no_allowed_script({:ok, []}, words),
+    do:
+      if(Enum.any?(words, &(&1 =~ @alphanumeric)),
+        do: {:error, :no_allowed_script},
+        else: {:ok, []}
+      )
+
+  defp no_allowed_script(result, _words), do: result
 
   defp trim(word, opts), do: trim(word, opts[:trim_kept], opts[:keep])
 

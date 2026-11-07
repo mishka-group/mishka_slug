@@ -44,7 +44,7 @@ defmodule MishkaSlug.Properties.WordsTest do
     Regex.compile!("\\A[\\p{sc=Common}\\p{sc=Inherited}#{Enum.join(names)}]\\z", "u")
   end
 
-  property "locales keep only letters of their scripts and Latin" do
+  property "locales keep only letters and digits of their scripts and Latin" do
     check all(
             text <- SlugGen.text(),
             opts <- SlugGen.options(locales: :some),
@@ -56,7 +56,7 @@ defmodule MishkaSlug.Properties.WordsTest do
         slug
         |> String.graphemes()
         |> Enum.flat_map(&String.codepoints/1)
-        |> Enum.filter(&(&1 =~ ~r/\p{L}/u))
+        |> Enum.filter(&(&1 =~ ~r/[\p{L}\p{Nd}]/u))
         |> Enum.each(
           &assert(&1 =~ allowed, "#{inspect(&1)} is outside #{inspect(opts[:locales])}")
         )
@@ -68,11 +68,23 @@ defmodule MishkaSlug.Properties.WordsTest do
     check all(
             text <- SlugGen.text(),
             locale <- member_of(~w(fa ar ru el he ja hi th en)),
-            region <- member_of(["", "-IR", "_us", "-Latn"]),
+            region <- member_of(["", "-IR", "_us", "-419"]),
             max_runs: @runs
           ) do
       assert MishkaSlug.slugify(text, locales: [locale]) ==
                MishkaSlug.slugify(text, locales: [String.upcase(locale) <> region])
+    end
+  end
+
+  property "a script subtag decides the script, whatever the language" do
+    check all(
+            text <- SlugGen.text(),
+            locale <- member_of(~w(fa ar ru el he ja hi th en)),
+            subtag <- member_of(["-Latn", "_latn-IR"]),
+            max_runs: @runs
+          ) do
+      assert MishkaSlug.slugify(text, locales: ["en"]) ==
+               MishkaSlug.slugify(text, locales: [locale <> subtag])
     end
   end
 

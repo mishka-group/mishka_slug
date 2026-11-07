@@ -11,27 +11,32 @@
 msgid ""
 msgstr ""
 
-#: lib/mishka_slug/messages.ex:33
+#: lib/mishka_slug/messages.ex:36
 #, elixir-autogen, elixir-format
 msgid "has no letters or digits to make a slug from"
 msgstr ""
 
-#: lib/mishka_slug/messages.ex:57
+#: lib/mishka_slug/messages.ex:69
 #, elixir-autogen, elixir-format
 msgid "is not a string value"
 msgstr ""
 
-#: lib/mishka_slug/messages.ex:39
+#: lib/mishka_slug/messages.ex:51
 #, elixir-autogen, elixir-format
 msgid "is not valid UTF-8 text"
 msgstr ""
 
-#: lib/mishka_slug/messages.ex:36
+#: lib/mishka_slug/messages.ex:48
 #, elixir-autogen, elixir-format
 msgid "mixes writing systems inside one word"
 msgstr ""
 
-#: lib/mishka_slug/messages.ex:43
+#: lib/mishka_slug/messages.ex:55
 #, elixir-autogen, elixir-format
 msgid "uses a site language the slug does not know: %{code}"
+msgstr ""
+
+#: lib/mishka_slug/messages.ex:41
+#, elixir-autogen, elixir-format
+msgid "uses letters or digits that the site languages do not allow in a slug"
 msgstr ""

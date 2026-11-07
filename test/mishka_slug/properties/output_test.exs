@@ -27,6 +27,7 @@ defmodule MishkaSlug.Properties.OutputTest do
       case slug(text, opts) do
         {:ok, slug} -> assert is_binary(slug) and slug != ""
         {:error, :empty} -> :ok
+        {:error, :no_allowed_script} -> assert opts[:locales] != []
         {:error, :mixed_scripts} -> assert opts[:mixed_scripts] == :reject
       end
     end

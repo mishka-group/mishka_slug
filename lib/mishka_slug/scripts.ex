@@ -19,9 +19,11 @@ defmodule MishkaSlug.Scripts do
 
   A combining mark belongs to the letter before it and is dropped with it, so a dropped letter
   never leaves its mark behind. A mark of one script never completes a letter of another: a
-  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Digits and
-  letters that belong to no single script (such as the Japanese long-vowel mark `ー`) are
-  neutral: they stay with the letters around them. A letter of a script this module does not know
+  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Characters
+  that belong to no single script (ASCII digits, the Japanese long-vowel mark `ー`) are neutral:
+  they stay with the letters around them. A digit of a script (Persian `۱۴۰۳`, Devanagari `१२`)
+  follows the allow-list like a letter, so `locales: ["en"]` drops it, but it never makes a word
+  mixed: `iphone۱۵` stays one word. `digits: :ascii` writes it as `0-9` first, so it is kept. A letter of a script this module does not know
   by name (for example Tibetan) counts as `:other`.
   """
 
@@ -60,17 +62,25 @@ defmodule MishkaSlug.Scripts do
 
   # A mark of a script runs with a letter of that script; one that follows a letter of another
   # script (Khudawadi `U+112E3` after `a`) starts the `:stray` group and is dropped.
+  # A digit of a script (Persian `۱`, Devanagari `१`) is its own run, so it never joins a letter
+  # run, and takes its inherited marks with it: `[^\\P{sc=X}\\p{Nd}]` is a letter of X,
+  # `[^\\P{sc=X}\\P{Nd}]` a digit of X.
   @runs Regex.compile!(
-          "([\\p{Nd}\\p{sc=Common}\\p{sc=Inherited}]+)|(\\p{M}+)|" <>
+          "([\\p{sc=Common}\\p{sc=Inherited}]+)|(\\p{M}+)|" <>
             Enum.map_join(@scripts, "|", fn script ->
               name = Map.fetch!(@pcre_names, script)
-              "(\\p{sc=#{name}}[\\p{sc=#{name}}\\p{sc=Inherited}]*)"
+              letter = "[^\\P{sc=#{name}}\\p{Nd}]"
+              digit = "[^\\P{sc=#{name}}\\P{Nd}]"
+
+              "(#{letter}(?:#{letter}|\\p{sc=Inherited})*)|(#{digit}(?:#{digit}|\\p{sc=Inherited})*)"
             end) <>
+            "|(\\p{Nd}(?:(?!#{@known})\\p{Nd}|\\p{sc=Inherited})*)" <>
             "|(\\p{L}(?:(?!#{@known})\\p{M})*)",
           "u"
         )
 
-  @groups [:neutral, :stray | @scripts] ++ [:other]
+  @groups [:neutral, :stray | Enum.flat_map(@scripts, &[&1, {:digits, &1}])] ++
+            [{:digits, :other}, :other]
 
   @families [[:han, :hiragana, :katakana], [:han, :hangul], [:han, :bopomofo]]
 
@@ -127,25 +137,73 @@ defmodule MishkaSlug.Scripts do
   @typedoc "A script a slug may use, as `MishkaSlug.Scripts.for_locales/1` returns it."
   @type script :: atom()
 
+  @iso15924 %{
+    "latn" => [:latin],
+    "arab" => [:arabic],
+    "hebr" => [:hebrew],
+    "cyrl" => [:cyrillic],
+    "grek" => [:greek],
+    "armn" => [:armenian],
+    "geor" => [:georgian],
+    "hani" => [:han],
+    "hans" => [:han, :bopomofo],
+    "hant" => [:han, :bopomofo],
+    "hira" => [:hiragana],
+    "kana" => [:katakana],
+    "hrkt" => [:hiragana, :katakana],
+    "jpan" => [:han, :hiragana, :katakana],
+    "hang" => [:hangul],
+    "kore" => [:hangul, :han],
+    "bopo" => [:bopomofo],
+    "deva" => [:devanagari],
+    "beng" => [:bengali],
+    "gujr" => [:gujarati],
+    "guru" => [:gurmukhi],
+    "knda" => [:kannada],
+    "mlym" => [:malayalam],
+    "sinh" => [:sinhala],
+    "taml" => [:tamil],
+    "telu" => [:telugu],
+    "thai" => [:thai],
+    "laoo" => [:lao],
+    "khmr" => [:khmer],
+    "mymr" => [:myanmar],
+    "ethi" => [:ethiopic]
+  }
+
   @doc """
   Returns the scripts the languages of a site are written in, always with `:latin`.
 
-  A locale is a language code as Mishka CMS stores it (`"fa"`, `"pt-br"`, `"zh-hans"`); only the
-  language part counts. An empty list means no restriction and returns `:any`.
+  A locale is a language code as Mishka CMS stores it (`"fa"`, `"pt-br"`, `"zh-hans"`). A script
+  subtag picks the script (`"sr-Latn"` is Latin, `"pa-Arab"` Arabic); otherwise the language part
+  is looked up in a built-in table. An empty list means no restriction and returns `:any`.
+
+  `resolver` lets the host decide instead of the built-in table: a `{module, function, args}`
+  called as `apply(module, function, [locale | args])` for each locale, returning
+  `{:ok, [script()]}` or `:error`. When it is `nil`, the `:script_resolver` of the `:mishka_slug`
+  application config is used, and without one the built-in table. `:error` gives
+  `{:error, {:unknown_locale, locale}}`.
 
       iex> MishkaSlug.Scripts.for_locales(["fa", "en"])
       {:ok, [:arabic, :latin]}
 
+      iex> MishkaSlug.Scripts.for_locales(["sr-Latn"])
+      {:ok, [:latin]}
+
       iex> MishkaSlug.Scripts.for_locales(["xx"])
       {:error, {:unknown_locale, "xx"}}
   """
-  @spec for_locales([String.t()]) ::
+  @spec for_locales([String.t()], {module(), atom(), list()} | nil) ::
           {:ok, :any | [script()]} | {:error, {:unknown_locale, String.t()}}
-  def for_locales([]), do: {:ok, :any}
+  def for_locales(locales, resolver \\ nil)
 
-  def for_locales(locales) do
+  def for_locales([], _resolver), do: {:ok, :any}
+
+  def for_locales(locales, resolver) do
+    resolver = resolver || Application.get_env(:mishka_slug, :script_resolver)
+
     Enum.reduce_while(locales, {:ok, []}, fn locale, {:ok, acc} ->
-      case scripts_of(language(locale)) do
+      case resolve(locale, resolver) do
         {:ok, scripts} -> {:cont, {:ok, acc ++ scripts}}
         :error -> {:halt, {:error, {:unknown_locale, locale}}}
       end
@@ -155,6 +213,26 @@ defmodule MishkaSlug.Scripts do
       error -> error
     end)
   end
+
+  @doc """
+  Returns the scripts of an ISO 15924 script code, as CLDR and BCP 47 tags write them.
+
+  The code is a string or an atom in any case (`"Arab"`, `:Cyrl`). Compound codes give every
+  script of their family: `"Jpan"` is Han with both kana, `"Kore"` Hangul with Han. A script this
+  library does not know by name gives `:error`. A `:script_resolver` can return its result as is.
+
+      iex> MishkaSlug.Scripts.from_iso15924("Arab")
+      {:ok, [:arabic]}
+
+      iex> MishkaSlug.Scripts.from_iso15924(:Jpan)
+      {:ok, [:han, :hiragana, :katakana]}
+
+      iex> MishkaSlug.Scripts.from_iso15924("Tibt")
+      :error
+  """
+  @spec from_iso15924(String.t() | atom()) :: {:ok, [script()]} | :error
+  def from_iso15924(code) when is_binary(code) or is_atom(code),
+    do: Map.fetch(@iso15924, code |> to_string() |> String.downcase())
 
   @doc """
   Returns the language part of a locale code, lowercased: `"pt-BR"` gives `"pt"`.
@@ -190,6 +268,22 @@ defmodule MishkaSlug.Scripts do
     end
   end
 
+  defp resolve(locale, nil) do
+    [language | subtags] = locale |> String.downcase() |> String.split(["-", "_"])
+    Enum.find_value(subtags, &script_subtag/1) || scripts_of(language)
+  end
+
+  defp resolve(locale, {module, function, args}), do: apply(module, function, [locale | args])
+
+  defp script_subtag(<<_::binary-size(4)>> = subtag) do
+    case from_iso15924(subtag) do
+      {:ok, scripts} -> {:ok, scripts}
+      :error -> nil
+    end
+  end
+
+  defp script_subtag(_subtag), do: nil
+
   defp scripts_of(language) when is_map_key(@non_latin, language),
     do: {:ok, Map.fetch!(@non_latin, language)}
 
@@ -214,6 +308,11 @@ defmodule MishkaSlug.Scripts do
   end
 
   defp block(:neutral, _allowed), do: :neutral
+  defp block({:digits, _script}, :any), do: :neutral
+
+  defp block({:digits, script}, allowed),
+    do: if(script in allowed, do: :neutral, else: :blocked)
+
   defp block(script, :any), do: [script]
   defp block(script, allowed), do: if(script in allowed, do: [script], else: :blocked)
 
