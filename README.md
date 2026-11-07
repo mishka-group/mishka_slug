@@ -17,6 +17,7 @@
 
 | Title | Slug |
 |---|---|
+| `Hello World: Getting Started with Elixir!` | `hello-world-getting-started-with-elixir` |
 | `قیمت‌گذاری نرم‌افزار` | `قیمتگذاری-نرمافزار` |
 | `हिन्दी भाषा नमस्ते` | `हिन्दी-भाषा-नमस्ते` |
 | `สวัสดีชาวโลก` | `สวัสดีชาวโลก` |
