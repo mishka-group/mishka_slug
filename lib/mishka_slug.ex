@@ -62,7 +62,16 @@ defmodule MishkaSlug do
     * `:locales` - `[String.t()]`, default `[]`. The site's languages (`["fa", "en"]`). Only
       letters and digits of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps
       every script. Without a `:language`, a Persian-family locale without `ar` turns on the Persian
-      fold.
+      fold. A script subtag picks the script (`"sr-Latn"` keeps Latin only); an unknown language
+      is `{:error, {:unknown_locale, code}}` unless a `:script_resolver` knows it.
+
+    * `:script_resolver` - `{module, function, args} | nil`, default `nil`. Decides the scripts of
+      each `:locales` code instead of the built-in table: called as
+      `apply(module, function, [code | args])`, it returns `{:ok, [script]}` (atoms such as
+      `:arabic`, `:latin`, `:cyrillic`, `:han`; `MishkaSlug.Scripts.from_iso15924/1` turns a CLDR
+      code like `"Arab"` into them) or `:error`, which gives `{:error, {:unknown_locale, code}}`.
+      `nil` uses the `:script_resolver` of the `:mishka_slug` application config, and without one
+      the built-in table.
 
     * `:mixed_scripts` - `:split | :reject`, default `:split`. What happens to a word that
       changes script, like `pаypal` with a Cyrillic `а`: `:split` cuts it at the change,
@@ -192,7 +201,7 @@ defmodule MishkaSlug do
     opts = Options.validate!(opts)
 
     with :ok <- utf8(text),
-         {:ok, allowed} <- Scripts.for_locales(opts[:locales]),
+         {:ok, allowed} <- Scripts.for_locales(opts[:locales], opts[:script_resolver]),
          {:ok, words} <- text |> clean(opts) |> words(opts) |> split(allowed, opts) do
       words
       |> truncate(opts)

@@ -68,11 +68,23 @@ defmodule MishkaSlug.Properties.WordsTest do
     check all(
             text <- SlugGen.text(),
             locale <- member_of(~w(fa ar ru el he ja hi th en)),
-            region <- member_of(["", "-IR", "_us", "-Latn"]),
+            region <- member_of(["", "-IR", "_us", "-419"]),
             max_runs: @runs
           ) do
       assert MishkaSlug.slugify(text, locales: [locale]) ==
                MishkaSlug.slugify(text, locales: [String.upcase(locale) <> region])
+    end
+  end
+
+  property "a script subtag decides the script, whatever the language" do
+    check all(
+            text <- SlugGen.text(),
+            locale <- member_of(~w(fa ar ru el he ja hi th en)),
+            subtag <- member_of(["-Latn", "_latn-IR"]),
+            max_runs: @runs
+          ) do
+      assert MishkaSlug.slugify(text, locales: ["en"]) ==
+               MishkaSlug.slugify(text, locales: [locale <> subtag])
     end
   end
 
