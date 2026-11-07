@@ -114,11 +114,10 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
 
   test "a slug holds only letters, marks, digits and single inner hyphens" do
     each_case(fn text, opts ->
-      slug = slug(text, opts)
-
-      assert is_atom(slug) or
-               Regex.match?(~r/\A[\p{L}\p{M}\p{Nd}]+(-[\p{L}\p{M}\p{Nd}]+)*\z/u, slug),
-             "#{inspect(text)} #{inspect(opts)} -> #{inspect(slug)}"
+      with {:ok, slug} <- MishkaSlug.slugify(text, opts) do
+        assert slug =~ ~r/\A[\p{L}\p{M}\p{Nd}]+(-[\p{L}\p{M}\p{Nd}]+)*\z/u,
+               "#{inspect(text)} #{inspect(opts)} -> #{inspect(slug)}"
+      end
     end)
   end
 
