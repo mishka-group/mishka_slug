@@ -1,0 +1,283 @@
+# SPDX-FileCopyrightText: 2026 Mishka Group contributors <https://github.com/mishka-group/mishka_slug/graphs/contributors>
+#
+# SPDX-License-Identifier: Apache-2.0
+
+defmodule MishkaSlug do
+  @options [
+    language: [
+      type: {:or, [:string, nil]},
+      default: nil,
+      doc: """
+      The language of the text, such as a page's `language` (`"fa"`, `"tr"`). It picks the
+      lowercasing rules (`tr` and `az` turn `I` into `ı`, `el` writes a final `ς`) and, for
+      `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`.
+      """
+    ],
+    locales: [
+      type: {:list, :string},
+      default: [],
+      doc: """
+      The site's languages (`["fa", "en"]`). Only letters of their scripts, and Latin, are
+      kept; see `MishkaSlug.Scripts`. `[]` keeps every script. Without a `:language`, a
+      Persian-family locale without `ar` turns on the Persian fold.
+      """
+    ],
+    mixed_scripts: [
+      type: {:in, [:split, :reject]},
+      default: :split,
+      doc: """
+      What happens to a word that changes script, like `pаypal` with a Cyrillic `а`:
+      `:split` cuts it at the change, `:reject` returns `{:error, :mixed_scripts}`.
+      """
+    ],
+    zwnj: [
+      type: {:in, [:remove, :separator]},
+      default: :remove,
+      doc: """
+      The Persian half-space (U+200C): `:remove` glues the parts (`قیمتگذاری`),
+      `:separator` makes it a word break (`قیمت-گذاری`).
+      """
+    ],
+    digits: [
+      type: {:in, [:keep, :ascii]},
+      default: :keep,
+      doc: """
+      `:keep` leaves digits as typed (`۱۴۰۳`); `:ascii` writes every decimal digit as
+      `0-9` (`1403`).
+      """
+    ],
+    keep: [
+      type: {:list, {:in, [".", "_", "~"]}},
+      default: [],
+      doc: """
+      Characters kept inside a word (`["."]` keeps `v1.2`). Only the URL-safe `.`, `_`
+      and `~` are accepted. They never start or end a word.
+      """
+    ],
+    max_length: [
+      type: {:or, [:pos_integer, nil]},
+      default: nil,
+      doc: """
+      The longest slug, in code points (what Postgres and Ash count). Whole words are kept
+      while they fit; a first word that is too long is cut between two graphemes.
+      """
+    ]
+  ]
+
+  @schema NimbleOptions.new!(@options)
+
+  @moduledoc """
+  URL slugs that keep the original script.
+
+  `slugify/2` turns a title into a slug in its own writing system: Persian stays Persian, Hindi
+  stays Hindi, Japanese stays Japanese. Nothing is transliterated.
+
+      iex> MishkaSlug.slugify("قیمت\u{200C}گذاری نرم\u{200C}افزار")
+      {:ok, "قیمتگذاری-نرمافزار"}
+
+      iex> MishkaSlug.slugify("हिन्दी भाषा")
+      {:ok, "हिन्दी-भाषा"}
+
+      iex> MishkaSlug.slugify("😀🚀")
+      {:error, :empty}
+
+  ## What a slug is made of
+
+  A slug is lowercase words joined by `-`. A word is a run of letters and decimal digits, with the
+  combining marks that complete them (Hindi vowel signs and viramas, Thai tone marks). Everything
+  else, from spaces and punctuation to emoji and `/ ? # % \\ :`, separates words. The result is
+  NFC, so a stored slug compares equal to a pasted one.
+
+  ## Safety
+
+  These are always on:
+
+  - Invisible characters are removed, never turned into a break: zero-width spaces and joiners,
+    bidi controls (`U+202E` and the isolates), soft hyphens, byte-order marks, variation selectors,
+    controls, private-use and unassigned code points. So `pay\\u200Bpal` gives `paypal`.
+  - A word may not mix scripts (see `:mixed_scripts`).
+  - The slug can never hold a URL delimiter or be `.` or `..`.
+  - Arabic harakat, tatweel and Hebrew points are dropped (they are optional spelling); every other
+    mark is kept, because in Indic and Thai scripts the marks spell the word.
+
+  ## Idempotent
+
+  `slugify(slug, opts)` returns `{:ok, slug}` for every slug it made with the same options. A CMS
+  can therefore re-slug an incoming URL parameter: when the result differs, redirect to it.
+
+  ## Options
+
+  #{NimbleOptions.docs(@schema)}
+  """
+
+  alias MishkaSlug.Scripts
+
+  @typedoc "Why no slug could be made."
+  @type reason :: :empty | :invalid_utf8 | :mixed_scripts | {:unknown_locale, String.t()}
+
+  @persian_family ~w(fa ur ckb)
+
+  @invisible ~r/[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}\p{Bidi_Control}\p{Default_Ignorable_Code_Point}]/u
+  @whitespace ~r/\p{White_Space}/u
+  @optional_marks ~r/[\x{0640}\x{064B}-\x{065F}\x{0670}\x{06D6}-\x{06DC}\x{06DF}-\x{06E4}\x{06E7}\x{06E8}\x{06EA}-\x{06ED}\x{0591}-\x{05BD}\x{05BF}\x{05C1}\x{05C2}\x{05C4}\x{05C5}\x{05C7}]/u
+  @apostrophe ~r/(?<=\p{L})['\x{2019}](?=\p{L})/u
+  @digit ~r/\p{Nd}/u
+
+  @digit_zeros for(cp <- 0..0x10FFFF, cp not in 0xD800..0xDFFF, into: "", do: <<cp::utf8>>)
+               |> then(&Regex.scan(~r/\p{Nd}/u, &1))
+               |> List.flatten()
+               |> Enum.map(fn <<cp::utf8>> -> cp end)
+               |> Enum.chunk_every(10)
+               |> Enum.map(&hd/1)
+
+  @doc """
+  Makes a slug from `text`.
+
+  Returns `{:ok, slug}`, or `{:error, reason}` when nothing is left (`:empty`), the text is not
+  UTF-8 (`:invalid_utf8`), a word mixes scripts under `mixed_scripts: :reject`, or a locale is not
+  known (`{:unknown_locale, code}`). Invalid options raise `NimbleOptions.ValidationError`.
+
+      iex> MishkaSlug.slugify("كتاب يك ۱۲۳", language: "fa", digits: :ascii)
+      {:ok, "کتاب-یک-123"}
+
+      iex> MishkaSlug.slugify("آموزش React در ۱۰ دقیقه", locales: ["fa"])
+      {:ok, "آموزش-react-در-۱۰-دقیقه"}
+  """
+  @spec slugify(String.t(), keyword()) :: {:ok, String.t()} | {:error, reason()}
+  def slugify(text, opts \\ []) when is_binary(text) do
+    opts = NimbleOptions.validate!(opts, @schema)
+
+    with :ok <- utf8(text),
+         {:ok, allowed} <- Scripts.for_locales(opts[:locales]),
+         {:ok, words} <- text |> clean(opts) |> words(opts[:keep]) |> split(allowed, opts) do
+      words
+      |> truncate(opts[:max_length], opts[:keep])
+      |> finish()
+    end
+  end
+
+  @doc false
+  @spec options() :: keyword()
+  def options, do: @options
+
+  @doc """
+  Same as `slugify/2`, but returns the slug or raises `ArgumentError`.
+
+      iex> MishkaSlug.slugify!("Привет, мир!")
+      "привет-мир"
+  """
+  @spec slugify!(String.t(), keyword()) :: String.t()
+  def slugify!(text, opts \\ []) do
+    case slugify(text, opts) do
+      {:ok, slug} -> slug
+      {:error, reason} -> raise ArgumentError, "cannot make a slug: #{inspect(reason)}"
+    end
+  end
+
+  defp utf8(text), do: if(String.valid?(text), do: :ok, else: {:error, :invalid_utf8})
+
+  defp clean(text, opts) do
+    text
+    |> String.normalize(:nfkc)
+    |> zwnj(opts[:zwnj])
+    |> String.replace(@whitespace, " ")
+    |> lowercase(opts[:language] && Scripts.language(opts[:language]))
+    |> String.normalize(:nfkc)
+    |> String.replace(@invisible, "")
+    |> fold(fold?(opts))
+    |> String.replace(@optional_marks, "")
+    |> digits(opts[:digits])
+    |> String.replace(@apostrophe, "")
+    |> String.normalize(:nfc)
+  end
+
+  defp zwnj(text, :remove), do: text
+  defp zwnj(text, :separator), do: String.replace(text, "\u{200C}", " ")
+
+  defp lowercase(text, language) when language in ["tr", "az"], do: String.downcase(text, :turkic)
+  defp lowercase(text, "el"), do: String.downcase(text, :greek)
+  defp lowercase(text, _language), do: text |> String.replace("İ", "i") |> String.downcase()
+
+  defp fold?(opts) do
+    case {opts[:language], Enum.map(opts[:locales], &Scripts.language/1)} do
+      {nil, languages} -> "ar" not in languages and Enum.any?(languages, &(&1 in @persian_family))
+      {language, _} -> Scripts.language(language) in @persian_family
+    end
+  end
+
+  defp fold(text, false), do: text
+
+  defp fold(text, true) do
+    text
+    |> String.replace(["ي", "ى"], "ی")
+    |> String.replace("ك", "ک")
+  end
+
+  defp digits(text, :keep), do: text
+  defp digits(text, :ascii), do: Regex.replace(@digit, text, &ascii_digit/1)
+
+  defp ascii_digit(<<cp::utf8>> = digit) do
+    case Enum.find(@digit_zeros, &(cp >= &1 and cp < &1 + 10)) do
+      nil -> digit
+      zero -> <<?0 + cp - zero>>
+    end
+  end
+
+  defp words(text, keep) do
+    "[\\p{L}\\p{Nd}][\\p{L}\\p{M}\\p{Nd}#{Enum.map_join(keep, &Regex.escape/1)}]*"
+    |> Regex.compile!("u")
+    |> Regex.scan(text)
+    |> List.flatten()
+  end
+
+  defp split(words, allowed, opts) do
+    Enum.reduce_while(words, {:ok, []}, fn word, {:ok, acc} ->
+      case Scripts.split(word, allowed, opts[:mixed_scripts]) do
+        {:ok, parts} -> {:cont, {:ok, acc ++ Enum.map(parts, &trim(&1, opts[:keep]))}}
+        error -> {:halt, error}
+      end
+    end)
+  end
+
+  defp trim(word, keep) do
+    case Enum.find(keep, &String.ends_with?(word, &1)) do
+      nil -> word
+      char -> word |> String.trim_trailing(char) |> trim(keep)
+    end
+  end
+
+  defp truncate(words, nil, _keep), do: words
+
+  defp truncate([first | _] = words, max, keep) do
+    words
+    |> Enum.reduce_while({[], -1}, fn word, {acc, length} ->
+      length = length + 1 + codepoints(word)
+      if length <= max, do: {:cont, {[word | acc], length}}, else: {:halt, {acc, length}}
+    end)
+    |> case do
+      {[], _} -> [first |> cut(max) |> trim(keep)]
+      {taken, _} -> Enum.reverse(taken)
+    end
+  end
+
+  defp truncate([], _max, _keep), do: []
+
+  defp cut(word, max) do
+    word
+    |> String.graphemes()
+    |> Enum.reduce_while({"", 0}, fn grapheme, {acc, length} ->
+      length = length + codepoints(grapheme)
+      if length <= max, do: {:cont, {acc <> grapheme, length}}, else: {:halt, {acc, length}}
+    end)
+    |> elem(0)
+  end
+
+  defp codepoints(text), do: text |> String.to_charlist() |> length()
+
+  defp finish(words) do
+    case Enum.reject(words, &(&1 == "")) do
+      [] -> {:error, :empty}
+      words -> {:ok, Enum.join(words, "-")}
+    end
+  end
+end
