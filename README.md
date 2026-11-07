@@ -47,6 +47,13 @@ MishkaSlug.slugify!("Привет, мир!")
 
 `slugify/2` is idempotent: a slug slugged again with the same options is unchanged. A CMS can re-slug an incoming URL parameter and redirect when the result differs, which also folds the variants people paste (uppercase, Arabic `ي` for Persian `ی`, decomposed accents).
 
+English and other Latin text:
+
+- Accents stay as typed: `Café Crème` gives `café-crème`, `Straße` gives `straße`.
+- `_` and `.` separate words unless they are in `:keep`: `a_b.c` gives `a-b-c`.
+- `&` is dropped (`Q&A` gives `q-a`), an apostrophe inside a word is removed (`don't` gives `dont`), and `1,000` gives `1-000`.
+- `:max_length` cuts at whole words: `hello world foo` with `max_length: 13` gives `hello-world`.
+
 ## ⚙️ Options
 
 | Option | Default | What it does |

@@ -23,7 +23,9 @@ defmodule MishkaSlug do
   A slug is lowercase words joined by `-`. A word is a run of letters and decimal digits, with the
   combining marks that complete them (Hindi vowel signs and viramas, Thai tone marks). Everything
   else, from spaces and punctuation to emoji and `/ ? # % \\ :`, separates words. The result is
-  NFC, so a stored slug compares equal to a pasted one. A capital sigma that ends a Greek word
+  NFC, so a stored slug compares equal to a pasted one. Latin accents stay as typed (`Café`
+  gives `café`, `Straße` gives `straße`), an apostrophe inside a word is removed (`don't` gives
+  `dont`), and `_`, `.`, `&` and `,` separate words (`Q&A` gives `q-a`, `1,000` gives `1-000`). A capital sigma that ends a Greek word
   becomes `ς` (`ΟΔΟΣ` gives `οδος`) in every language but `tr` and `az`.
 
   ## Safety
@@ -203,11 +205,18 @@ defmodule MishkaSlug do
     end)
   end
 
+  defp trim(word, []), do: word
+
   defp trim(word, keep) do
-    case Enum.find(keep, &String.ends_with?(word, &1)) do
-      nil -> word
-      char -> word |> String.trim_trailing(char) |> trim(keep)
-    end
+    kept? = &String.starts_with?(&1, keep)
+
+    word
+    |> String.graphemes()
+    |> Enum.drop_while(kept?)
+    |> Enum.reverse()
+    |> Enum.drop_while(kept?)
+    |> Enum.reverse()
+    |> Enum.join()
   end
 
   defp truncate(words, nil, _keep), do: words

@@ -76,7 +76,6 @@ defmodule MishkaSlug.Properties.OutputTest do
     end
   end
 
-  @tag :known_bug
   property "with locales, no word starts with a combining mark left by a dropped letter" do
     check all(
             text <- SlugGen.text(),
@@ -110,7 +109,6 @@ defmodule MishkaSlug.Properties.OutputTest do
     end
   end
 
-  @tag :known_bug
   property "with locales, slugging a slug again gives the same slug" do
     check all(text <- SlugGen.text(), opts <- SlugGen.options(), max_runs: @runs * 2) do
       with {:ok, slug} <- slug(text, opts), do: assert(slug(slug, opts) == {:ok, slug})

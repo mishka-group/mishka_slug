@@ -17,8 +17,9 @@ defmodule MishkaSlug.Scripts do
     part must fit one family: `夏の幻ㄒㄧㄤ` is cut before the Bopomofo, because Han carries
     Hiragana in from the start and no family holds Hiragana with Bopomofo.
 
-  Digits, combining marks and letters that belong to no single script (such as the Japanese
-  long-vowel mark `ー`) are neutral: they stay with the letters around them. A letter of a script
+  A combining mark belongs to the letter before it and is dropped with it, so a dropped letter
+  never leaves its mark behind. Digits and letters that belong to no single script (such as the
+  Japanese long-vowel mark `ー`) are neutral: they stay with the letters around them. A letter of a script
   this module does not know by name (for example Tibetan) counts as `:other`.
   """
 
@@ -55,7 +56,7 @@ defmodule MishkaSlug.Scripts do
 
   @runs Regex.compile!(
           "([\\p{Nd}\\p{M}\\p{sc=Common}\\p{sc=Inherited}]+)|" <>
-            Enum.map_join(@scripts, "|", &"(\\p{sc=#{Map.fetch!(@pcre_names, &1)}}+)") <>
+            Enum.map_join(@scripts, "|", &"((?:\\p{sc=#{Map.fetch!(@pcre_names, &1)}}\\p{M}*)+)") <>
             "|(\\p{L}\\p{M}*)",
           "u"
         )

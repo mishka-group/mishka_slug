@@ -59,7 +59,6 @@ defmodule MishkaSlug.Properties.ChangeTest do
     end
   end
 
-  @tag :known_bug
   property "the written slug is stable when slugged again with the change's options" do
     check all(title <- title(), max_runs: 1_000) do
       with {:ok, %{slug: slug}} when is_binary(slug) <- create(title, "fa") do
