@@ -122,17 +122,25 @@ defmodule MishkaSlug.SlugGen do
 
   @doc """
   The NFC form of `text`, with Hangul composed even where OTP's normalizer misses it.
-
-  OTP composes one grapheme cluster at a time and only composes jamo at the start of a cluster, so
-  a prepended sign (`U+113D1`) or an archaic leading jamo leaves the jamo after it decomposed. A
-  Hangul leading jamo or syllable is never the second half of a composition, so cutting the text
-  before each one and normalizing the pieces gives the true NFC.
   """
   @spec nfc(String.t()) :: String.t()
-  def nfc(text) do
+  def nfc(text), do: normalize(text, :nfc)
+
+  @doc """
+  The `form` normalization of `text`, correct around Hangul where OTP's normalizer is not.
+
+  OTP composes one grapheme cluster at a time and only composes jamo at the start of a cluster, so
+  a prepended sign (`U+113D1`) or an archaic leading jamo leaves the jamo after it decomposed. It
+  also composes an LV syllable with the archaic vowel `U+11A7` as if it were a trailing consonant,
+  and so drops it (`"\\u{B1CC}\\u{11A7}"` gives `"\\u{B1CC}"`). A Hangul leading jamo or syllable is
+  never the second half of a composition and `U+11A7` composes with nothing, so cutting the text
+  before each of them and after `U+11A7` and normalizing the pieces gives the true form.
+  """
+  @spec normalize(String.t(), :nfc | :nfd | :nfkc | :nfkd) :: String.t()
+  def normalize(text, form) do
     text
-    |> String.split(~r/(?=[\x{1100}-\x{1112}\x{AC00}-\x{D7A3}])/u)
-    |> Enum.map_join(&String.normalize(&1, :nfc))
+    |> String.split(~r/(?=[\x{1100}-\x{1112}\x{AC00}-\x{D7A3}\x{11A7}])|(?<=\x{11A7})/u)
+    |> Enum.map_join(&String.normalize(&1, form))
   end
 
   @doc "A scalar value from the whole Unicode range, surrogates excluded."
