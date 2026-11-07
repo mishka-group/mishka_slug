@@ -48,11 +48,13 @@ defmodule MishkaSlug.SafetyTest do
     assert_raise ArgumentError, ~r/:empty/, fn -> MishkaSlug.slugify!("!!!") end
   end
 
-  test "Hangul after a grapheme-prepending sign or an archaic jamo is composed, so it is stable" do
+  test "Hangul after a grapheme-prepending sign or an archaic jamo is composed and keeps U+11A7, so it is stable" do
     for {title, slug} <- [
           {"\u{113D1}\u{C0C8}", "\u{113D1}-\u{C0C8}"},
           {"\u{0D4E}\u{1109}\u{1162}\u{11AB}", "\u{0D4E}-\u{C0CC}"},
-          {"\u{1113}\u{C0C8}", "\u{1113}\u{C0C8}"}
+          {"\u{1113}\u{C0C8}", "\u{1113}\u{C0C8}"},
+          {"\u{0D4E}\u{B0EC}\u{11A7}", "\u{0D4E}-\u{B0EC}\u{11A7}"},
+          {"\u{1102}\u{1164}\u{11A7}", "\u{B0EC}\u{11A7}"}
         ] do
       assert MishkaSlug.slugify(title) == {:ok, slug}
       assert MishkaSlug.slugify(slug) == {:ok, slug}

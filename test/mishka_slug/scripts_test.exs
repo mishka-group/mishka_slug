@@ -26,4 +26,28 @@ defmodule MishkaSlug.ScriptsTest do
     assert {:ok, [:arabic, :latin]} = Scripts.for_locales(["fa"])
     assert {:ok, :any} = Scripts.for_locales([])
   end
+
+  test "a mark of another script never rides on a letter, whatever latin is set to" do
+    opts = [
+      keep: [],
+      max_length: 6,
+      language: "he",
+      digits: :ascii,
+      mixed_scripts: :split,
+      zwnj: :separator,
+      locales: ["ru", "tr"]
+    ]
+
+    for latin <- [:ascii, :keep] do
+      assert MishkaSlug.slugify("\u{A7D2}\u{112E3}", [latin: latin] ++ opts) == {:ok, "\u{A7D3}"}
+      assert MishkaSlug.slugify("a\u{112E3}b", [latin: latin] ++ opts) == {:ok, "ab"}
+      assert MishkaSlug.slugify("a\u{0901}", [latin: latin] ++ opts) == {:ok, "a"}
+    end
+
+    assert Scripts.split("a\u{0901}", :any, :split) == {:ok, ["a"]}
+    assert Scripts.split("a\u{0301}", [:latin], :split) == {:ok, ["a\u{0301}"]}
+
+    assert Scripts.split("\u{0915}\u{093F}", [:devanagari], :reject) ==
+             {:ok, ["\u{0915}\u{093F}"]}
+  end
 end

@@ -57,6 +57,8 @@ defmodule MishkaSlug.MixProject do
       {:ex_dna, "~> 1.5", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false},
       # `mix hex.publish` builds the docs with it.
+      # `mix test` runs `usage_rules.sync` in a temporary project with it (see `sync_integration`).
+      {:usage_rules, "~> 1.2", only: :test},
       {:ex_doc, "~> 0.40", only: :dev, runtime: false}
     ]
   end
@@ -69,7 +71,8 @@ defmodule MishkaSlug.MixProject do
     [
       licenses: ["Apache-2.0"],
       maintainers: ["Shahryar Tavakkoli"],
-      files: ~w(lib priv .formatter.exs mix.exs LICENSE README* CHANGELOG* SECURITY*),
+      files:
+        ~w(lib priv .formatter.exs mix.exs LICENSE README* CHANGELOG* SECURITY* usage-rules.md usage-rules),
       links: %{
         "Mishka CMS" => "https://mishka.tools/cms",
         "Discord" => "https://discord.gg/m4zdCJjDJg",
