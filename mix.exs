@@ -44,7 +44,7 @@ defmodule MishkaSlug.MixProject do
 
   defp deps do
     [
-      {:nimble_options, "~> 1.2"},
+      {:guarded_struct, "~> 0.1"},
       # Only for `MishkaSlug.Change`, which is compiled when the host has Ash.
       {:ash, "~> 3.37", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

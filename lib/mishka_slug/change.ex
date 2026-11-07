@@ -3,44 +3,51 @@
 # SPDX-License-Identifier: Apache-2.0
 
 if Code.ensure_loaded?(Ash.Resource.Change) do
+  defmodule MishkaSlug.Change.Options do
+    @moduledoc false
+
+    use GuardedStruct
+
+    guardedstruct authorized_fields: true do
+      field :from, atom(), enforce: true, derives: "validate(atom)"
+      field :into, atom() | nil, default: nil, derives: "validate(optional=[atom])"
+      field :skip_if_present?, boolean(), default: false, derives: "validate(boolean)"
+
+      field :language, atom() | String.t() | nil,
+        default: nil,
+        derives: "validate(optional=[either=[atom, string]])"
+
+      field :locales, [String.t()] | {module(), atom(), list()},
+        default: [],
+        validator: {__MODULE__, :validate_locales}
+    end
+
+    @doc false
+    def validate_locales(field, locales) when is_list(locales) do
+      if Enum.all?(locales, &is_binary/1),
+        do: {:ok, field, locales},
+        else: {:error, field, "must be a list of strings or {module, function, args}"}
+    end
+
+    def validate_locales(field, {module, function, args} = locales)
+        when is_atom(module) and is_atom(function) and is_list(args),
+        do: {:ok, field, locales}
+
+    def validate_locales(field, _locales),
+      do: {:error, field, "must be a list of strings or {module, function, args}"}
+
+    @doc false
+    def validate(opts) do
+      case builder(Map.new(opts)) do
+        {:ok, struct} -> {:ok, struct |> Map.from_struct() |> Map.to_list()}
+        {:error, errors} -> {:error, MishkaSlug.Options.message(errors)}
+      end
+    end
+  end
+end
+
+if Code.ensure_loaded?(Ash.Resource.Change) do
   defmodule MishkaSlug.Change do
-    @options [
-               from: [
-                 type: :atom,
-                 required: true,
-                 doc: "The attribute or argument the slug is made from, such as `:title`."
-               ],
-               into: [
-                 type: {:or, [:atom, nil]},
-                 default: nil,
-                 doc: "The attribute the slug is written to. Defaults to `:from`."
-               ],
-               skip_if_present?: [
-                 type: :boolean,
-                 default: false,
-                 doc: "Leave the slug alone when the action already sets `:into`."
-               ],
-               language: [
-                 type: {:or, [:atom, :string, nil]},
-                 default: nil,
-                 doc: """
-                 The text's language: an attribute or argument name read from the changeset (such
-                 as `:language`), or a fixed code.
-                 """
-               ],
-               locales: [
-                 type: {:or, [{:list, :string}, {:tuple, [:atom, :atom, {:list, :any}]}]},
-                 default: [],
-                 doc: """
-                 The site's languages: a list, or `{module, function, args}` called with the
-                 changeset first, so a CMS can read them for the changeset's tenant.
-                 """
-               ]
-             ] ++
-               Keyword.drop(MishkaSlug.options(), [:language, :locales])
-
-    @schema NimbleOptions.new!(@options)
-
     @moduledoc """
     An Ash change that writes a slug made by `MishkaSlug.slugify/2`.
 
@@ -56,20 +63,45 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
     ## Options
 
-    #{NimbleOptions.docs(@schema)}
+    The options of `MishkaSlug.slugify/2` (see `MishkaSlug.Options`) are accepted as they are,
+    except `:language` and `:locales`, which take more here. Unknown options and invalid values
+    make `init/1` return an error. These are the change's own:
+
+      * `:from` - `atom()`, required. The attribute or argument the slug is made from, such as
+        `:title`.
+
+      * `:into` - `atom() | nil`, default `nil`. The attribute the slug is written to. Defaults
+        to `:from`.
+
+      * `:skip_if_present?` - `boolean()`, default `false`. Leave the slug alone when the action
+        already sets `:into`.
+
+      * `:language` - `atom() | String.t() | nil`, default `nil`. The text's language: an
+        attribute or argument name read from the changeset (such as `:language`), or a fixed
+        code.
+
+      * `:locales` - `[String.t()] | {module, function, args}`, default `[]`. The site's
+        languages: a list, or `{module, function, args}` called with the changeset first, so a
+        CMS can read them for the changeset's tenant.
     """
 
     use Ash.Resource.Change
 
     alias Ash.Changeset
+    alias MishkaSlug.Change.Options, as: ChangeOptions
+    alias MishkaSlug.Options
+
+    @own_keys [:from, :into, :skip_if_present?, :language, :locales]
 
     @impl true
-    def init(opts) do
-      case NimbleOptions.validate(opts, @schema) do
-        {:ok, opts} -> {:ok, opts}
-        {:error, error} -> {:error, Exception.message(error)}
+    def init(opts) when is_list(opts) do
+      with {:ok, own} <- ChangeOptions.validate(Keyword.take(opts, @own_keys)),
+           {:ok, slug} <- Options.validate(Keyword.drop(opts, @own_keys)) do
+        {:ok, Keyword.merge(slug, own)}
       end
     end
+
+    def init(_opts), do: {:error, "invalid options: expected a keyword list"}
 
     @impl true
     def change(changeset, opts, _context) do

@@ -59,6 +59,8 @@ MishkaSlug.slugify!("Привет, мир!")
 | `:keep` | `[]` | `.`, `_` or `~` kept inside a word, such as `v1.2`. Never at a word's ends. |
 | `:max_length` | `nil` | The longest slug in code points. Whole words while they fit; a long first word is cut between graphemes. |
 
+Options are checked by `MishkaSlug.Options` (a `guarded_struct`). An unknown option or a value outside the accepted ones raises `ArgumentError`.
+
 Japanese (Han with kana), Korean (Hangul with Han) and Chinese with Bopomofo count as one script, so their words are never cut.
 
 ## 🛡️ Safety
@@ -98,6 +100,7 @@ end
 lib/
 ├── mishka_slug.ex          slugify/2 and slugify!/2, the options and the pipeline
 └── mishka_slug/
+    ├── options.ex          the options schema, shared by slugify/2 and the change
     ├── scripts.ex          site languages to scripts, and one script per word
     └── change.ex           the Ash change (compiled when Ash is present)
 test/mishka_slug/           real titles per language, safety, options and the Ash change

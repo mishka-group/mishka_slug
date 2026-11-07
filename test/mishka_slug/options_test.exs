@@ -110,7 +110,7 @@ defmodule MishkaSlug.OptionsTest do
 
     test "refuses characters that are not safe in a URL" do
       for char <- ["?", "!", "/", "#", "%", "-", "@"] do
-        assert_raise NimbleOptions.ValidationError, fn ->
+        assert_raise ArgumentError, fn ->
           MishkaSlug.slugify("x", keep: [char])
         end
       end
@@ -148,6 +148,6 @@ defmodule MishkaSlug.OptionsTest do
   end
 
   test "unknown options raise" do
-    assert_raise NimbleOptions.ValidationError, fn -> MishkaSlug.slugify("x", separator: "_") end
+    assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", separator: "_") end
   end
 end

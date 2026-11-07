@@ -3,68 +3,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 defmodule MishkaSlug do
-  @options [
-    language: [
-      type: {:or, [:string, nil]},
-      default: nil,
-      doc: """
-      The language of the text, such as a page's `language` (`"fa"`, `"tr"`). It picks the
-      lowercasing rules (`tr` and `az` turn `I` into `ı`) and, for `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`.
-      """
-    ],
-    locales: [
-      type: {:list, :string},
-      default: [],
-      doc: """
-      The site's languages (`["fa", "en"]`). Only letters of their scripts, and Latin, are
-      kept; see `MishkaSlug.Scripts`. `[]` keeps every script. Without a `:language`, a
-      Persian-family locale without `ar` turns on the Persian fold.
-      """
-    ],
-    mixed_scripts: [
-      type: {:in, [:split, :reject]},
-      default: :split,
-      doc: """
-      What happens to a word that changes script, like `pаypal` with a Cyrillic `а`:
-      `:split` cuts it at the change, `:reject` returns `{:error, :mixed_scripts}`.
-      """
-    ],
-    zwnj: [
-      type: {:in, [:remove, :separator]},
-      default: :remove,
-      doc: """
-      The Persian half-space (U+200C): `:remove` glues the parts (`قیمتگذاری`),
-      `:separator` makes it a word break (`قیمت-گذاری`).
-      """
-    ],
-    digits: [
-      type: {:in, [:keep, :ascii]},
-      default: :keep,
-      doc: """
-      `:keep` leaves digits as typed (`۱۴۰۳`); `:ascii` writes every decimal digit as
-      `0-9` (`1403`).
-      """
-    ],
-    keep: [
-      type: {:list, {:in, [".", "_", "~"]}},
-      default: [],
-      doc: """
-      Characters kept inside a word (`["."]` keeps `v1.2`). Only the URL-safe `.`, `_`
-      and `~` are accepted. They never start or end a word.
-      """
-    ],
-    max_length: [
-      type: {:or, [:pos_integer, nil]},
-      default: nil,
-      doc: """
-      The longest slug, in code points (what Postgres and Ash count). Whole words are kept
-      while they fit; a first word that is too long is cut between two graphemes.
-      """
-    ]
-  ]
-
-  @schema NimbleOptions.new!(@options)
-
   @moduledoc """
   URL slugs that keep the original script.
 
@@ -107,10 +45,39 @@ defmodule MishkaSlug do
 
   ## Options
 
-  #{NimbleOptions.docs(@schema)}
+  Options are checked by `MishkaSlug.Options`: an unknown option, or a value outside the accepted
+  ones, raises `ArgumentError`.
+
+    * `:language` - `String.t() | nil`, default `nil`. The language of the text, such as a page's
+      `language` (`"fa"`, `"tr"`). It picks the lowercasing rules (`tr` and `az` turn `I` into
+      `ı`) and, for `fa`, `ur` and `ckb`, folds the Arabic `ي ى ك` into the Persian `ی ک`.
+
+    * `:locales` - `[String.t()]`, default `[]`. The site's languages (`["fa", "en"]`). Only
+      letters of their scripts, and Latin, are kept; see `MishkaSlug.Scripts`. `[]` keeps every
+      script. Without a `:language`, a Persian-family locale without `ar` turns on the Persian
+      fold.
+
+    * `:mixed_scripts` - `:split | :reject`, default `:split`. What happens to a word that
+      changes script, like `pаypal` with a Cyrillic `а`: `:split` cuts it at the change,
+      `:reject` returns `{:error, :mixed_scripts}`.
+
+    * `:zwnj` - `:remove | :separator`, default `:remove`. The Persian half-space (U+200C):
+      `:remove` glues the parts (`قیمتگذاری`), `:separator` makes it a word break
+      (`قیمت-گذاری`).
+
+    * `:digits` - `:keep | :ascii`, default `:keep`. `:keep` leaves digits as typed (`۱۴۰۳`);
+      `:ascii` writes every decimal digit as `0-9` (`1403`).
+
+    * `:keep` - list of `"."`, `"_"` and `"~"`, default `[]`. Characters kept inside a word
+      (`["."]` keeps `v1.2`). Only the URL-safe `.`, `_` and `~` are accepted. They never start
+      or end a word.
+
+    * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
+      (what Postgres and Ash count). Whole words are kept while they fit; a first word that is
+      too long is cut between two graphemes.
   """
 
-  alias MishkaSlug.Scripts
+  alias MishkaSlug.{Options, Scripts}
 
   @typedoc "Why no slug could be made."
   @type reason :: :empty | :invalid_utf8 | :mixed_scripts | {:unknown_locale, String.t()}
@@ -135,7 +102,7 @@ defmodule MishkaSlug do
 
   Returns `{:ok, slug}`, or `{:error, reason}` when nothing is left (`:empty`), the text is not
   UTF-8 (`:invalid_utf8`), a word mixes scripts under `mixed_scripts: :reject`, or a locale is not
-  known (`{:unknown_locale, code}`). Invalid options raise `NimbleOptions.ValidationError`.
+  known (`{:unknown_locale, code}`). Invalid options raise `ArgumentError`.
 
       iex> MishkaSlug.slugify("كتاب يك ۱۲۳", language: "fa", digits: :ascii)
       {:ok, "کتاب-یک-123"}
@@ -145,7 +112,7 @@ defmodule MishkaSlug do
   """
   @spec slugify(String.t(), keyword()) :: {:ok, String.t()} | {:error, reason()}
   def slugify(text, opts \\ []) when is_binary(text) do
-    opts = NimbleOptions.validate!(opts, @schema)
+    opts = Options.validate!(opts)
 
     with :ok <- utf8(text),
          {:ok, allowed} <- Scripts.for_locales(opts[:locales]),
@@ -155,10 +122,6 @@ defmodule MishkaSlug do
       |> finish()
     end
   end
-
-  @doc false
-  @spec options() :: keyword()
-  def options, do: @options
 
   @doc """
   Same as `slugify/2`, but returns the slug or raises `ArgumentError`.
