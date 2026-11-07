@@ -94,7 +94,8 @@ defmodule MishkaSlug do
       of a word are removed. `false` leaves them like WordPress does (`__init__` gives
       `__init__`, `my_post_` gives `my_post_`, `_ _ _` gives `_-_-_`), so a migrated WordPress
       slug stays the same. `true` trims them (`__init__` gives `init`, `my_post_` gives
-      `my_post`, `_ _ _` gives `{:error, :empty}`). An edge `-` is always removed, and a slug
+      `my_post`, `_ _ _` gives `{:error, :empty}`). A kept character that a prepended sign glues
+      into one grapheme is removed too, and the sign stays (Malayalam `ൎ.` gives `ൎ`). An edge `-` is always removed, and a slug
       that is only `.` or `..` is refused (`{:error, :empty}`) in both modes.
 
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
@@ -330,10 +331,20 @@ defmodule MishkaSlug do
     |> String.graphemes()
     |> Enum.drop_while(kept?)
     |> Enum.reverse()
-    |> Enum.drop_while(kept?)
+    |> trim_last(keep)
     |> Enum.reverse()
     |> Enum.join()
   end
+
+  defp trim_last([last | rest] = graphemes, keep) do
+    case String.split(last, keep, parts: 2) do
+      [^last] -> graphemes
+      ["", _kept] -> trim_last(rest, keep)
+      [prepended, _kept] -> [prepended | rest]
+    end
+  end
+
+  defp trim_last([], _keep), do: []
 
   defp truncate(words, opts), do: truncate(words, opts[:max_length], opts)
 

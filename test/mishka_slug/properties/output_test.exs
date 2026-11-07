@@ -85,7 +85,7 @@ defmodule MishkaSlug.Properties.OutputTest do
       with {:ok, slug} <- slug(text, Keyword.put(opts, :trim_kept, true)) do
         for word <- String.split(slug, "-"), graphemes = String.graphemes(word) do
           refute String.starts_with?(hd(graphemes), opts[:keep])
-          refute String.starts_with?(List.last(graphemes), opts[:keep])
+          refute String.contains?(List.last(graphemes), opts[:keep])
         end
       end
 
@@ -173,7 +173,7 @@ defmodule MishkaSlug.Properties.OutputTest do
       expected = slug(text, opts)
 
       for form <- [:nfc, :nfd, :nfkc, :nfkd] do
-        assert slug(String.normalize(text, form), opts) == expected
+        assert slug(SlugGen.normalize(text, form), opts) == expected
       end
     end
   end

@@ -138,7 +138,8 @@ defmodule MishkaSlug.Compat.LocaleSlugTest do
 
   test "decomposed and composed input give the same slug" do
     each_case(fn text, opts ->
-      assert slug(String.normalize(text, :nfc), opts) == slug(String.normalize(text, :nfd), opts),
+      assert slug(MishkaSlug.SlugGen.nfc(text), opts) ==
+               slug(MishkaSlug.SlugGen.normalize(text, :nfd), opts),
              "#{inspect(text)} #{inspect(opts)}"
     end)
   end

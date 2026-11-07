@@ -54,7 +54,9 @@ defmodule MishkaSlug.SafetyTest do
           {"\u{0D4E}\u{1109}\u{1162}\u{11AB}", "\u{0D4E}-\u{C0CC}"},
           {"\u{1113}\u{C0C8}", "\u{1113}\u{C0C8}"},
           {"\u{0D4E}\u{B0EC}\u{11A7}", "\u{0D4E}-\u{B0EC}\u{11A7}"},
-          {"\u{1102}\u{1164}\u{11A7}", "\u{B0EC}\u{11A7}"}
+          {"\u{1102}\u{1164}\u{11A7}", "\u{B0EC}\u{11A7}"},
+          {"\u{B1CC}\u{11A7}", "\u{B1CC}\u{11A7}"},
+          {"\u{1102}\u{116C}\u{11A7}", "\u{B1CC}\u{11A7}"}
         ] do
       assert MishkaSlug.slugify(title) == {:ok, slug}
       assert MishkaSlug.slugify(slug) == {:ok, slug}
