@@ -37,6 +37,10 @@ defmodule MishkaSlug.Compat.JoomlaTest do
      "Joomla writes ASCII or drops what it cannot map; we keep each word in its script"},
     {"`1234567890-=~!@#$%^&*()_+ qwerty[]\\QWERTY{}|asdf;'ASDF:\"zxcv,./ZXCV<>?", [],
      "1234567890--qwerty-qwerty-asdf-asdf-zxcv-zxcv",
+     "1234567890-_-qwerty-qwerty-asdf-asdf-zxcv-zxcv",
+     "Joomla leaves a double dash where punctuation touches a dash and drops a lone `_`; we collapse runs and keep a lone `_` like WordPress"},
+    {"`1234567890-=~!@#$%^&*()_+ qwerty[]\\QWERTY{}|asdf;'ASDF:\"zxcv,./ZXCV<>?",
+     [trim_kept: true], "1234567890--qwerty-qwerty-asdf-asdf-zxcv-zxcv",
      "1234567890-qwerty-qwerty-asdf-asdf-zxcv-zxcv",
      "Joomla leaves a double dash where punctuation touches a dash; we always collapse runs"}
   ]
@@ -51,9 +55,10 @@ defmodule MishkaSlug.Compat.JoomlaTest do
       char = <<cp::utf8>>
 
       assert {:ok, "a-b"} = MishkaSlug.slugify("a#{char}b#{char}", keep: [])
-      assert {:error, :empty} = MishkaSlug.slugify(char)
+      assert {:error, :empty} = MishkaSlug.slugify(char, trim_kept: true)
     end
 
-    assert {:ok, "a_b"} = MishkaSlug.slugify("a_b_")
+    assert {:ok, "a_b_"} = MishkaSlug.slugify("a_b_")
+    assert {:ok, "a_b"} = MishkaSlug.slugify("a_b_", trim_kept: true)
   end
 end

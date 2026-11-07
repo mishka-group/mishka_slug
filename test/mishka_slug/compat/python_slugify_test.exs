@@ -33,8 +33,10 @@ defmodule MishkaSlug.Compat.PythonSlugifyTest do
 
   @cases [
     {"This is a test ---", [], "this-is-a-test", "this-is-a-test", nil},
-    {"___This is a test ---", [], "this-is-a-test", "this-is-a-test", nil},
-    {"___This is a test___", [], "this-is-a-test", "this-is-a-test", nil},
+    {"___This is a test ---", [trim_kept: true], "this-is-a-test", "this-is-a-test", nil},
+    {"___This is a test___", [trim_kept: true], "this-is-a-test", "this-is-a-test", nil},
+    {"___This is a test___", [], "this-is-a-test", "___this-is-a-test___",
+     "python-slugify strips `_` at the edges; we keep it like WordPress unless `trim_kept: true`"},
     {"This -- is a ## test ---", [], "this-is-a-test", "this-is-a-test", nil},
     {"影師嗎", [], "影師嗎", "影師嗎", nil},
     {"影師嗎", [], "ying-shi-ma", "影師嗎", @transliteration},

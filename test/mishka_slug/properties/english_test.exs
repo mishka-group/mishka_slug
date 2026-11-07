@@ -13,7 +13,8 @@ defmodule MishkaSlug.Properties.EnglishTest do
   mode) and the slug `MishkaSlug` gives. A row where they differ carries the reason. The
   properties check a plain-English title against a short reference written here: lowercase ASCII
   words joined by one `-`, an apostrophe between two letters removed, `_` kept inside a word (the
-  default `keep: ["_"]`) and everything else a break.
+  default `keep: ["_"]`, with `trim_kept: true` so a word never starts or ends with it) and
+  everything else a break.
   """
 
   alias MishkaSlug.SlugGen
@@ -88,7 +89,9 @@ defmodule MishkaSlug.Properties.EnglishTest do
      "a comma is a separator, so the digit groups are separate words"},
     {"Don't Panic!!!", [], "dont-panic", "dont-panic", nil},
     {"---Dashes---everywhere---", [], "dashes-everywhere", "dashes-everywhere", nil},
-    {"___underscores___", [], "underscores", "underscores", nil},
+    {"___underscores___", [trim_kept: true], "underscores", "underscores", nil},
+    {"___underscores___", [], "underscores", "___underscores___",
+     "python-slugify strips `_` at the edges; we keep it like WordPress unless `trim_kept: true`"},
     {"Tab\tand\nnewline", [], "tab-and-newline", "tab-and-newline", nil},
     {"HELLO", [language: "en"], "hello", "hello", nil},
     {"Hello World", [locales: ["en"]], "hello-world", "hello-world", nil},
@@ -156,7 +159,7 @@ defmodule MishkaSlug.Properties.EnglishTest do
             max <- integer(1..60),
             max_runs: 3_000
           ) do
-      assert MishkaSlug.slugify(title, max_length: max) == reference(title, max)
+      assert MishkaSlug.slugify(title, max_length: max, trim_kept: true) == reference(title, max)
     end
   end
 
@@ -164,7 +167,7 @@ defmodule MishkaSlug.Properties.EnglishTest do
     word = "[a-z0-9]+(_+[a-z0-9]+)*"
 
     check all(title <- SlugGen.english_title(), max_runs: 3_000) do
-      with {:ok, slug} <- MishkaSlug.slugify(title) do
+      with {:ok, slug} <- MishkaSlug.slugify(title, trim_kept: true) do
         assert slug =~ ~r/\A#{word}(-#{word})*\z/
       end
     end

@@ -77,5 +77,10 @@ defmodule MishkaSlug.ChangeTest do
     assert message =~ "latin"
     assert {:ok, opts} = MishkaSlug.Change.init(from: :title, latin: :keep, keep: [])
     assert opts[:latin] == :keep and opts[:keep] == []
+    assert opts[:trim_kept] == false
+    assert {:ok, opts} = MishkaSlug.Change.init(from: :title, trim_kept: true)
+    assert {:ok, "init"} = MishkaSlug.slugify("__init__", Keyword.take(opts, [:trim_kept]))
+    assert {:error, message} = MishkaSlug.Change.init(from: :title, trim_kept: 1)
+    assert message =~ "trim_kept"
   end
 end

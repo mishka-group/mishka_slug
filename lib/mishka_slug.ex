@@ -28,7 +28,7 @@ defmodule MishkaSlug do
   prepended sign such as Tulu-Tigalari `U+113D1`, which OTP's normalizer leaves decomposed).
   Latin letters lose their accents the way WordPress writes them (`Café Crème` gives
   `cafe-creme`, see `:latin`), an apostrophe inside a word is removed (`don't` gives `dont`),
-  `_` stays inside a word (`snake_case` gives `snake_case`, see `:keep`), and `.`, `&` and `,`
+  `_` stays in a word (`snake_case` gives `snake_case`, see `:keep` and `:trim_kept`), and `.`, `&` and `,`
   separate words (`Q&A` gives `q-a`, `1,000` gives `1-000`). A capital sigma that ends a Greek word becomes `ς`
   (`ΟΔΟΣ` gives `οδος`) in every language but `tr` and `az`.
 
@@ -40,7 +40,7 @@ defmodule MishkaSlug do
     bidi controls (`U+202E` and the isolates), soft hyphens, byte-order marks, variation selectors,
     controls, private-use and unassigned code points. So `pay\\u200Bpal` gives `paypal`.
   - A word may not mix scripts (see `:mixed_scripts`).
-  - The slug can never hold a URL delimiter or be `.` or `..`.
+  - The slug can never hold a URL delimiter or be `.` or `..`, with or without `:trim_kept`.
   - Arabic harakat, tatweel and Hebrew points are dropped (they are optional spelling); every other
     mark is kept, because in Indic and Thai scripts the marks spell the word.
 
@@ -85,11 +85,17 @@ defmodule MishkaSlug do
       marks. `:keep` leaves Latin letters as typed (`Café` gives `café`).
 
     * `:keep` - list of `"."`, `"_"` and `"~"`, default `["_"]`. Characters kept inside a word
-      (`["."]` keeps `v1.2`). Only the URL-safe `.`, `_` and `~` are accepted. They never start
-      or end a word: `__init__` gives `init`. By default `_` is kept like WordPress and Django
-      keep it (`snake_case_name`); `keep: []` makes it a word break again (`snake-case-name`).
-      The list replaces the default, so `keep: ["."]` breaks on `_`; write `[".", "_"]` to keep
-      both.
+      (`["."]` keeps `v1.2`). Only the URL-safe `.`, `_` and `~` are accepted. By default `_`
+      is kept like WordPress and Django keep it (`snake_case_name`); `keep: []` makes it a word
+      break again (`snake-case-name`). The list replaces the default, so `keep: ["."]` breaks on
+      `_`; write `[".", "_"]` to keep both. See `:trim_kept` for the ends of a word.
+
+    * `:trim_kept` - `boolean()`, default `false`. Whether kept characters at the start or end
+      of a word are removed. `false` leaves them like WordPress does (`__init__` gives
+      `__init__`, `my_post_` gives `my_post_`, `_ _ _` gives `_-_-_`), so a migrated WordPress
+      slug stays the same. `true` trims them (`__init__` gives `init`, `my_post_` gives
+      `my_post`, `_ _ _` gives `{:error, :empty}`). An edge `-` is always removed, and a slug
+      that is only `.` or `..` is refused (`{:error, :empty}`) in both modes.
 
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
       (what Postgres and Ash count). Whole words are kept while they fit; a first word that is
@@ -172,9 +178,9 @@ defmodule MishkaSlug do
 
     with :ok <- utf8(text),
          {:ok, allowed} <- Scripts.for_locales(opts[:locales]),
-         {:ok, words} <- text |> clean(opts) |> words(opts[:keep]) |> split(allowed, opts) do
+         {:ok, words} <- text |> clean(opts) |> words(opts) |> split(allowed, opts) do
       words
-      |> truncate(opts[:max_length], opts[:keep])
+      |> truncate(opts)
       |> finish()
     end
   end
@@ -293,8 +299,11 @@ defmodule MishkaSlug do
     end
   end
 
-  defp words(text, keep) do
-    "[\\p{L}\\p{Nd}][\\p{L}\\p{M}\\p{Nd}#{Enum.map_join(keep, &Regex.escape/1)}]*"
+  defp words(text, opts) do
+    kept = Enum.map_join(opts[:keep], &Regex.escape/1)
+    first = if opts[:trim_kept], do: "", else: kept
+
+    "[\\p{L}\\p{Nd}#{first}][\\p{L}\\p{M}\\p{Nd}#{kept}]*"
     |> Regex.compile!("u")
     |> Regex.scan(text)
     |> List.flatten()
@@ -303,15 +312,18 @@ defmodule MishkaSlug do
   defp split(words, allowed, opts) do
     Enum.reduce_while(words, {:ok, []}, fn word, {:ok, acc} ->
       case Scripts.split(word, allowed, opts[:mixed_scripts]) do
-        {:ok, parts} -> {:cont, {:ok, acc ++ Enum.map(parts, &trim(&1, opts[:keep]))}}
+        {:ok, parts} -> {:cont, {:ok, acc ++ Enum.map(parts, &trim(&1, opts))}}
         error -> {:halt, error}
       end
     end)
   end
 
-  defp trim(word, []), do: word
+  defp trim(word, opts), do: trim(word, opts[:trim_kept], opts[:keep])
 
-  defp trim(word, keep) do
+  defp trim(word, false, _keep), do: word
+  defp trim(word, true, []), do: word
+
+  defp trim(word, true, keep) do
     kept? = &String.starts_with?(&1, keep)
 
     word
@@ -323,21 +335,23 @@ defmodule MishkaSlug do
     |> Enum.join()
   end
 
-  defp truncate(words, nil, _keep), do: words
+  defp truncate(words, opts), do: truncate(words, opts[:max_length], opts)
 
-  defp truncate([first | _] = words, max, keep) do
+  defp truncate(words, nil, _opts), do: words
+
+  defp truncate([first | _] = words, max, opts) do
     words
     |> Enum.reduce_while({[], -1}, fn word, {acc, length} ->
       length = length + 1 + codepoints(word)
       if length <= max, do: {:cont, {[word | acc], length}}, else: {:halt, {acc, length}}
     end)
     |> case do
-      {[], _} -> [first |> cut(max) |> trim(keep)]
+      {[], _} -> [first |> cut(max) |> trim(opts)]
       {taken, _} -> Enum.reverse(taken)
     end
   end
 
-  defp truncate([], _max, _keep), do: []
+  defp truncate([], _max, _opts), do: []
 
   defp cut(word, max) do
     word
@@ -354,7 +368,10 @@ defmodule MishkaSlug do
   defp finish(words) do
     case Enum.reject(words, &(&1 == "")) do
       [] -> {:error, :empty}
-      words -> {:ok, Enum.join(words, "-")}
+      words -> words |> Enum.join("-") |> safe()
     end
   end
+
+  defp safe(slug) when slug in [".", ".."], do: {:error, :empty}
+  defp safe(slug), do: {:ok, slug}
 end

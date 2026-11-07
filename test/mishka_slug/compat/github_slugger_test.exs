@@ -18,28 +18,27 @@ defmodule MishkaSlug.Compat.GithubSluggerTest do
   | Difference | Why |
   |---|---|
   | Edges and runs | GitHub keeps one `-` for every space, dash or removed symbol; we join with one. |
-  | `_` | GitHub keeps `_` anywhere; we keep it inside a word only, and `keep: []` breaks there. |
+  | `_` | GitHub keeps `_` in a word, as we do; `keep: []` breaks there. A lone `_` is a word of its own. |
   | `.` | GitHub deletes `.` and joins the parts; we break the word unless `keep: ["."]`. |
   | `–` | GitHub deletes the en and em dash and joins the parts; we break the word. |
-  | `__proto__` | GitHub keeps the underscores; we do not start a slug with `_`. |
   """
 
   @runs "GitHub keeps one hyphen per space or symbol; we join any run with one"
   @edges "GitHub keeps a hyphen at the edge; we never start or end a slug with one"
   @underscore "GitHub keeps `_`; `keep: []` makes it a word break"
-  @lone_underscore "GitHub keeps a lone `_`; we keep `_` only inside a word"
   @dot "GitHub deletes `.` and joins the parts; we break the word"
 
   @cases [
     {"alpha", [], "alpha", "alpha", nil},
     {"bravoCharlieDelta", [], "bravocharliedelta", "bravocharliedelta", nil},
     {"hasOwnProperty", [], "hasownproperty", "hasownproperty", nil},
-    {"__proto__", [], "__proto__", "proto", "a slug does not start or end with `_`"},
+    {"__proto__", [], "__proto__", "__proto__", nil},
+    {"__proto__", [trim_kept: true], "__proto__", "proto", "`trim_kept: true` removes edge `_`"},
     {"echo 1", [], "echo-1", "echo-1", nil},
     {"foxtrot-1", [], "foxtrot-1", "foxtrot-1", nil},
     {"heading with a - dash", [], "heading-with-a---dash", "heading-with-a-dash", @runs},
     {"heading with an _ underscore", [], "heading-with-an-_-underscore",
-     "heading-with-an-underscore", @lone_underscore},
+     "heading-with-an-_-underscore", nil},
     {"heading with a period.txt", [], "heading-with-a-periodtxt", "heading-with-a-period-txt",
      @dot},
     {"heading with a period.txt", [keep: ["."]], "heading-with-a-periodtxt",
@@ -60,7 +59,7 @@ defmodule MishkaSlug.Compat.GithubSluggerTest do
     {"em–dash", [], "emdash", "em-dash", @dot},
     {"😄 unicode emoji", [], "-unicode-emoji", "unicode-emoji", @edges},
     {"😄-😄 unicode emoji", [], "--unicode-emoji", "unicode-emoji", @edges},
-    {"😄_😄 unicode emoji", [], "_-unicode-emoji", "unicode-emoji", @edges},
+    {"😄_😄 unicode emoji", [], "_-unicode-emoji", "_-unicode-emoji", nil},
     {"😄 - an emoji", [], "---an-emoji", "an-emoji", @edges},
     {":smile: - a gemoji", [], "smile---a-gemoji", "smile-a-gemoji", @runs},
     {"Привет", [], "привет", "привет", nil},
@@ -79,13 +78,13 @@ defmodule MishkaSlug.Compat.GithubSluggerTest do
     {"a\u{00A0}\u{2000}\u{3000}b", [], "a---b", "a-b", @runs},
     {"a- ‐ ‑ ‒ — ― 〜 ﹣ －b", [], "a---------b", "a-b", @runs},
     {"a« ‘ “ ‹b", [], "a----b", "a-b", @runs},
-    {"a‿ ⁀ ＿b", [], "a-_-b", "a-b", @runs}
+    {"a‿ ⁀ ＿b", [], "a-_-b", "a-_b", @runs}
   ]
 
   compat_cases(@cases)
 
   test "every code point leaves only letters, marks, digits and hyphens, and re-slugs to itself" do
-    allowed = ~r/\A[\p{L}\p{M}\p{Nd}-]+\z/u
+    allowed = ~r/\A[\p{L}\p{M}\p{Nd}_-]+\z/u
 
     chunks =
       for cp <- 0..0x10FFFF, cp not in 0xD800..0xDFFF, do: <<cp::utf8>>

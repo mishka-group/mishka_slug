@@ -17,7 +17,9 @@ defmodule MishkaSlug.Compat.RustSlugTest do
   @cases [
     {"My Test String!!!1!1", [], "my-test-string-1-1", "my-test-string-1-1", nil},
     {"test\nit   now!", [], "test-it-now", "test-it-now", nil},
-    {"  --test_-_cool", [], "test-cool", "test-cool", nil},
+    {"  --test_-_cool", [trim_kept: true], "test-cool", "test-cool", nil},
+    {"  --test_-_cool", [], "test-cool", "test_-_cool",
+     "the crate makes `_` a separator; we keep it like WordPress"},
     {"Æúű--cool?", [], "aeuu-cool", "aeuu-cool", nil},
     {"Æúű--cool?", [latin: :keep], "aeuu-cool", "æúű-cool",
      "`latin: :keep` leaves the letters as typed; deunicode writes ASCII"},

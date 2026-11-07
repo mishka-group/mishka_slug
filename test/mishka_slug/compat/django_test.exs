@@ -16,9 +16,11 @@ defmodule MishkaSlug.Compat.DjangoTest do
   | Difference | Why |
   |---|---|
   | `_` with `keep: []` | Django keeps underscores in a word, as we do by default; `keep: []` splits there. |
+  | Edge `_` | Django strips `_` from both ends; we keep it like WordPress unless `trim_kept: true`. |
   | Turkish `I` | Django has no language option; `tr` lowercases `I` to `ı`. |
   """
 
+  @edge_underscore "Django strips `_` at the edges; we keep it like WordPress unless `trim_kept: true`"
   @underscore "`keep: []` makes `_` a word break; Django keeps it, as our default does"
 
   @cases [
@@ -30,13 +32,18 @@ defmodule MishkaSlug.Compat.DjangoTest do
     {"underscore_in-value", [], "underscore_in-value", "underscore_in-value", nil},
     {"underscore_in-value", [keep: []], "underscore_in-value", "underscore-in-value",
      @underscore},
-    {"__strip__underscore-value___", [], "strip__underscore-value", "strip__underscore-value",
-     nil},
+    {"__strip__underscore-value___", [trim_kept: true], "strip__underscore-value",
+     "strip__underscore-value", nil},
+    {"__strip__underscore-value___", [], "strip__underscore-value",
+     "__strip__underscore-value___", @edge_underscore},
     {"__strip__underscore-value___", [keep: []], "strip__underscore-value",
      "strip-underscore-value", @underscore},
     {"--strip-dash-value---", [], "strip-dash-value", "strip-dash-value", nil},
-    {"__strip-mixed-value---", [], "strip-mixed-value", "strip-mixed-value", nil},
-    {"_ -strip-mixed-value _-", [], "strip-mixed-value", "strip-mixed-value", nil},
+    {"__strip-mixed-value---", [trim_kept: true], "strip-mixed-value", "strip-mixed-value", nil},
+    {"__strip-mixed-value---", [], "strip-mixed-value", "__strip-mixed-value", @edge_underscore},
+    {"_ -strip-mixed-value _-", [trim_kept: true], "strip-mixed-value", "strip-mixed-value", nil},
+    {"_ -strip-mixed-value _-", [], "strip-mixed-value", "_-strip-mixed-value-_",
+     @edge_underscore},
     {"spam & ıçüş", [latin: :keep], "spam-ıçüş", "spam-ıçüş", nil},
     {"spam & ıçüş", [], "spam-ıçüş", "spam-icus",
      "`latin: :ascii` writes Latin letters without accents, as WordPress does"},
