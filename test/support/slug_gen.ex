@@ -6,9 +6,10 @@ defmodule MishkaSlug.SlugGen do
   @moduledoc """
   StreamData generators for the property tests of `MishkaSlug.slugify/2`.
 
-  `text/0` mixes ASCII words, every script the library knows, combining marks, emoji, ZWJ
-  sequences, bidi controls, controls, invisibles, no-break spaces, code points next to the
-  surrogate range, unassigned code points and arbitrary scalar values. `options/0` draws every
+  `text/0` mixes ASCII words, every script the library knows, combining marks, Hangul jamo after
+  grapheme-prepending signs, emoji, ZWJ sequences, bidi controls, controls, invisibles, no-break
+  spaces, code points next to the surrogate range, unassigned code points and arbitrary scalar
+  values. `options/0` draws every
   option the library accepts.
   """
 
@@ -34,6 +35,27 @@ defmodule MishkaSlug.SlugGen do
     armenian: [0x531..0x556],
     georgian: [0x10D0..0x10FA],
     other: [0xF40..0xF69, 0x1200..0x1248]
+  ]
+
+  @jamo [0x1100..0x11FF, 0xA960..0xA97C, 0xD7B0..0xD7FB, 0xAC00..0xD7A3]
+
+  @prepend [
+    0x600..0x605,
+    0x6DD..0x6DD,
+    0x70F..0x70F,
+    0x890..0x891,
+    0x8E2..0x8E2,
+    0xD4E..0xD4E,
+    0x110BD..0x110BD,
+    0x110CD..0x110CD,
+    0x111C2..0x111C3,
+    0x113D1..0x113D1,
+    0x1193F..0x1193F,
+    0x11941..0x11941,
+    0x11A3A..0x11A3A,
+    0x11A84..0x11A89,
+    0x11D46..0x11D46,
+    0x11F02..0x11F02
   ]
 
   @combining [0x300..0x36F, 0x483..0x487, 0x64B..0x65F, 0x591..0x5BD, 0x93C..0x93C, 0xE31..0xE31]
@@ -98,6 +120,21 @@ defmodule MishkaSlug.SlugGen do
   @spec char([Range.t()]) :: StreamData.t(String.t())
   def char(ranges), do: ranges |> Enum.map(&integer/1) |> one_of() |> map(&<<&1::utf8>>)
 
+  @doc """
+  The NFC form of `text`, with Hangul composed even where OTP's normalizer misses it.
+
+  OTP composes one grapheme cluster at a time and only composes jamo at the start of a cluster, so
+  a prepended sign (`U+113D1`) or an archaic leading jamo leaves the jamo after it decomposed. A
+  Hangul leading jamo or syllable is never the second half of a composition, so cutting the text
+  before each one and normalizing the pieces gives the true NFC.
+  """
+  @spec nfc(String.t()) :: String.t()
+  def nfc(text) do
+    text
+    |> String.split(~r/(?=[\x{1100}-\x{1112}\x{AC00}-\x{D7A3}])/u)
+    |> Enum.map_join(&String.normalize(&1, :nfc))
+  end
+
   @doc "A scalar value from the whole Unicode range, surrogates excluded."
   @spec scalar() :: StreamData.t(String.t())
   def scalar do
@@ -122,6 +159,12 @@ defmodule MishkaSlug.SlugGen do
       {3, member_of(@punctuation)},
       {2, string(?0..?9, min_length: 1, max_length: 5)},
       {3, scalar()},
+      {2,
+       [@prepend, @jamo]
+       |> Enum.map(&char/1)
+       |> one_of()
+       |> list_of(min_length: 1, max_length: 4)
+       |> map(&Enum.join/1)},
       {2, member_of([" ", "  ", " \t "])}
     ])
   end

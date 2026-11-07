@@ -91,7 +91,7 @@ defmodule MishkaSlug.Properties.OutputTest do
     check all(text <- SlugGen.text(), opts <- SlugGen.options(), max_runs: @runs) do
       with {:ok, slug} <- slug(text, opts) do
         assert String.valid?(slug)
-        assert String.normalize(slug, :nfc) == slug
+        assert SlugGen.nfc(slug) == slug
         encoded = URI.encode(slug, &URI.char_unreserved?/1)
         assert encoded =~ ~r/\A[A-Za-z0-9\-._~%]+\z/
         assert URI.decode(encoded) == slug
@@ -154,14 +154,16 @@ defmodule MishkaSlug.Properties.OutputTest do
           assert length(String.to_charlist(cut)) <= max
           assert String.starts_with?(full, cut)
 
-          assert cut ==
-                   full
-                   |> String.graphemes()
-                   |> Enum.take(String.length(cut))
-                   |> Enum.join()
+          if cut != full and not String.starts_with?(full, cut <> "-") do
+            [first | _] = String.split(full, "-")
+            refute cut =~ "-"
 
-          whole_words = [cut == full, String.starts_with?(full, cut <> "-"), cut =~ ~r/\A[^-]*\z/]
-          assert Enum.any?(whole_words)
+            assert cut ==
+                     first
+                     |> String.graphemes()
+                     |> Enum.take(String.length(cut))
+                     |> Enum.join()
+          end
 
         {{:error, :empty}, {:ok, _}} ->
           :ok

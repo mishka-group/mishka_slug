@@ -23,10 +23,12 @@ defmodule MishkaSlug do
   A slug is lowercase words joined by `-`. A word is a run of letters and decimal digits, with the
   combining marks that complete them (Hindi vowel signs and viramas, Thai tone marks). Everything
   else, from spaces and punctuation to emoji and `/ ? # % \\ :`, separates words. The result is
-  NFC, so a stored slug compares equal to a pasted one. Latin accents stay as typed (`Café`
-  gives `café`, `Straße` gives `straße`), an apostrophe inside a word is removed (`don't` gives
-  `dont`), and `_`, `.`, `&` and `,` separate words (`Q&A` gives `q-a`, `1,000` gives `1-000`). A capital sigma that ends a Greek word
-  becomes `ς` (`ΟΔΟΣ` gives `οδος`) in every language but `tr` and `az`.
+  NFC, so a stored slug compares equal to a pasted one (Hangul jamo are composed even after a
+  prepended sign such as Tulu-Tigalari `U+113D1`, which OTP's normalizer leaves decomposed).
+  Latin accents stay as typed (`Café` gives `café`, `Straße` gives `straße`), an apostrophe
+  inside a word is removed (`don't` gives `dont`), and `_`, `.`, `&` and `,` separate words
+  (`Q&A` gives `q-a`, `1,000` gives `1-000`). A capital sigma that ends a Greek word becomes `ς`
+  (`ΟΔΟΣ` gives `οδος`) in every language but `tr` and `az`.
 
   ## Safety
 
@@ -91,6 +93,7 @@ defmodule MishkaSlug do
   @optional_marks ~r/[\x{0640}\x{064B}-\x{065F}\x{0670}\x{06D6}-\x{06DC}\x{06DF}-\x{06E4}\x{06E7}\x{06E8}\x{06EA}-\x{06ED}\x{0591}-\x{05BD}\x{05BF}\x{05C1}\x{05C2}\x{05C4}\x{05C5}\x{05C7}]/u
   @apostrophe ~r/(?<=\p{L})['\x{2019}](?=\p{L})/u
   @digit ~r/\p{Nd}/u
+  @jamo ~r/[\x{1100}-\x{1112}][\x{1161}-\x{1175}][\x{11A8}-\x{11C2}]?|[\x{AC00}-\x{D7A3}][\x{11A8}-\x{11C2}]/u
 
   @digit_zeros for(cp <- 0..0x10FFFF, cp not in 0xD800..0xDFFF, into: "", do: <<cp::utf8>>)
                |> then(&Regex.scan(~r/\p{Nd}/u, &1))
@@ -153,8 +156,23 @@ defmodule MishkaSlug do
     |> String.replace(@optional_marks, "")
     |> digits(opts[:digits])
     |> String.replace(@apostrophe, "")
-    |> String.normalize(:nfc)
+    |> nfc()
   end
+
+  defp nfc(text) do
+    text
+    |> String.normalize(:nfc)
+    |> String.replace(@jamo, &compose_jamo/1)
+  end
+
+  defp compose_jamo(<<lead::utf8, vowel::utf8, rest::binary>>) when lead in 0x1100..0x1112,
+    do:
+      compose_jamo(<<0xAC00 + (lead - 0x1100) * 588 + (vowel - 0x1161) * 28::utf8, rest::binary>>)
+
+  defp compose_jamo(<<syllable::utf8, trail::utf8>>) when rem(syllable - 0xAC00, 28) == 0,
+    do: <<syllable + trail - 0x11A7::utf8>>
+
+  defp compose_jamo(text), do: text
 
   defp zwnj(text, :remove), do: text
   defp zwnj(text, :separator), do: String.replace(text, "\u{200C}", " ")

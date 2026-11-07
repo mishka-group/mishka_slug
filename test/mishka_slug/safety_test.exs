@@ -48,6 +48,17 @@ defmodule MishkaSlug.SafetyTest do
     assert_raise ArgumentError, ~r/:empty/, fn -> MishkaSlug.slugify!("!!!") end
   end
 
+  test "Hangul after a grapheme-prepending sign or an archaic jamo is composed, so it is stable" do
+    for {title, slug} <- [
+          {"\u{113D1}\u{C0C8}", "\u{113D1}-\u{C0C8}"},
+          {"\u{0D4E}\u{1109}\u{1162}\u{11AB}", "\u{0D4E}-\u{C0CC}"},
+          {"\u{1113}\u{C0C8}", "\u{1113}\u{C0C8}"}
+        ] do
+      assert MishkaSlug.slugify(title) == {:ok, slug}
+      assert MishkaSlug.slugify(slug) == {:ok, slug}
+    end
+  end
+
   describe "every slug" do
     @corpus Enum.map(@attacks, &elem(&1, 1)) ++
               [
@@ -60,7 +71,9 @@ defmodule MishkaSlug.SafetyTest do
                 "ا\u{064E}\u{0654}مر",
                 "v1.2 .. ...",
                 "ΟΔΟΣ",
-                "İIıi"
+                "İIıi",
+                "\u{113D1}\u{C0C8}",
+                "\u{1113}\u{1109}\u{1162}"
               ]
 
     test "is idempotent and safe for a URL path segment" do
@@ -91,7 +104,7 @@ defmodule MishkaSlug.SafetyTest do
   end
 
   defp assert_url_safe(slug) do
-    assert slug == String.normalize(slug, :nfc)
+    assert slug == MishkaSlug.SlugGen.nfc(slug)
     refute slug =~ ~r"[/?#%\\:\s]"u
     refute slug =~ ~r/[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Bidi_Control}\p{Default_Ignorable_Code_Point}]/u
     refute slug =~ ~r/^-|-$|--/

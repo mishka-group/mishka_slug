@@ -54,7 +54,7 @@ defmodule MishkaSlug.Properties.ChangeTest do
     check all(title <- title(), max_runs: 1_000) do
       with {:ok, %{slug: slug}} when is_binary(slug) <- create(title, "fa") do
         assert String.length(slug) <= 20
-        assert String.valid?(slug) and String.normalize(slug, :nfc) == slug
+        assert String.valid?(slug) and SlugGen.nfc(slug) == slug
       end
     end
   end
