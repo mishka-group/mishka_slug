@@ -123,6 +123,10 @@ end
 
 `language: :language` reads the record's language, and `locales:` takes a list or `{module, function, args}` called with the changeset first, so the site's languages can come from its tenant. A title with no slug is an error on `:title`; the slug is never set to `nil`. Without `:max_length` the `max_length` of the slug attribute is used.
 
+## 🤖 Usage rules for AI agents
+
+The package ships [usage_rules](https://hexdocs.pm/usage_rules/) files (`usage-rules.md` and `usage-rules/`) so an agent knows the options, the return shapes and the do's and don'ts. Add `{:usage_rules, "~> 1.2", only: :dev}`, set `usage_rules: [file: "CLAUDE.md", usage_rules: [{:mishka_slug, sub_rules: ["ash", "configuration"]}]]` in `project/0`, and run `mix usage_rules.sync`.
+
 ## 🗂️ Layout
 
 ```
@@ -132,6 +136,7 @@ lib/
     ├── options.ex          the options schema, shared by slugify/2 and the change
     ├── scripts.ex          site languages to scripts, and one script per word
     └── change.ex           the Ash change (compiled when Ash is present)
+usage-rules.md, usage-rules/ rules for AI agents (examples checked by a test)
 test/mishka_slug/           real titles per language, safety, options and the Ash change
 ```
 
