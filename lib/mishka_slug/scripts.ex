@@ -18,7 +18,8 @@ defmodule MishkaSlug.Scripts do
     Hiragana in from the start and no family holds Hiragana with Bopomofo.
 
   A combining mark belongs to the letter before it and is dropped with it, so a dropped letter
-  never leaves its mark behind. Digits and letters that belong to no single script (such as the
+  never leaves its mark behind. A mark of one script never completes a letter of another: a
+  Khudawadi vowel sign after a Latin `a` is dropped, as `latin: :ascii` drops it too. Digits and letters that belong to no single script (such as the
   Japanese long-vowel mark `ー`) are neutral: they stay with the letters around them. A letter of a script
   this module does not know by name (for example Tibetan) counts as `:other`.
   """
@@ -54,14 +55,21 @@ defmodule MishkaSlug.Scripts do
 
   @scripts Map.keys(@pcre_names)
 
+  @known "[" <> Enum.map_join(@scripts, &"\\p{sc=#{Map.fetch!(@pcre_names, &1)}}") <> "]"
+
+  # A mark of a script runs with a letter of that script; one that follows a letter of another
+  # script (Khudawadi `U+112E3` after `a`) starts the `:stray` group and is dropped.
   @runs Regex.compile!(
-          "([\\p{Nd}\\p{M}\\p{sc=Common}\\p{sc=Inherited}]+)|" <>
-            Enum.map_join(@scripts, "|", &"((?:\\p{sc=#{Map.fetch!(@pcre_names, &1)}}\\p{M}*)+)") <>
-            "|(\\p{L}\\p{M}*)",
+          "([\\p{Nd}\\p{sc=Common}\\p{sc=Inherited}]+)|(\\p{M}+)|" <>
+            Enum.map_join(@scripts, "|", fn script ->
+              name = Map.fetch!(@pcre_names, script)
+              "(\\p{sc=#{name}}[\\p{sc=#{name}}\\p{sc=Inherited}]*)"
+            end) <>
+            "|(\\p{L}(?:(?!#{@known})\\p{M})*)",
           "u"
         )
 
-  @groups [:neutral | @scripts] ++ [:other]
+  @groups [:neutral, :stray | @scripts] ++ [:other]
 
   @families [[:han, :hiragana, :katakana], [:han, :hangul], [:han, :bopomofo]]
 
@@ -194,6 +202,7 @@ defmodule MishkaSlug.Scripts do
       index = Enum.find_index(groups, &(&1 != ""))
       {Enum.at(@groups, index), Enum.at(groups, index)}
     end)
+    |> Enum.reject(&match?({:stray, _text}, &1))
   end
 
   defp merge(runs, allowed) do
