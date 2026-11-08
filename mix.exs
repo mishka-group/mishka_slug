@@ -48,7 +48,9 @@ defmodule MishkaSlug.MixProject do
       {:gettext, "~> 1.0"},
       # Only for `MishkaSlug.Change`, which is compiled when the host has Ash.
       {:ash, "~> 3.37", optional: true},
-      {:stream_data, "~> 1.4", only: [:dev, :test], override: true},
+      # The property tests use it, and Ash needs it in every env, so it cannot be `only: [:dev, :test]`.
+      # Optional: a host without Ash does not fetch it.
+      {:stream_data, "~> 1.4", optional: true},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:sobelow, "~> 0.18", only: [:dev, :test], runtime: false},
       {:mix_audit, "~> 2.1", only: [:dev, :test], runtime: false},
