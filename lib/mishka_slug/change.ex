@@ -217,26 +217,34 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       |> Keyword.put(:max_length, opts[:max_length] || max_length(changeset.resource, into))
     end
 
-    defp unique_suffix(changeset, true, {into, _value, _slug_options, max_suffix} = slug) do
+    defp unique_suffix(changeset, true, {into, _value, _slug_options, _max_suffix} = slug) do
       taken = taken_fields(changeset.resource, into)
-
-      Changeset.around_transaction(changeset, fn changeset, callback ->
-        first = callback.(changeset)
-
-        2..max_suffix//1
-        |> Enum.reduce_while(first, fn suffix, result ->
-          with true <- taken?(result, taken),
-               {:ok, suffixed} <- suffixed(slug, suffix) do
-            {:cont, callback.(Changeset.force_change_attribute(changeset, into, suffixed))}
-          else
-            _done -> {:halt, result}
-          end
-        end)
-        |> then(&if(taken?(&1, taken), do: first, else: &1))
-      end)
+      Changeset.around_transaction(changeset, &save_unique(&1, &2, slug, taken))
     end
 
     defp unique_suffix(changeset, _off, _slug), do: changeset
+
+    defp save_unique(
+           changeset,
+           callback,
+           {_into, _value, _slug_options, max_suffix} = slug,
+           taken
+         ) do
+      first = callback.(changeset)
+
+      2..max_suffix//1
+      |> Enum.reduce_while(first, &next_suffix(&1, &2, {changeset, callback, slug, taken}))
+      |> then(&if(taken?(&1, taken), do: first, else: &1))
+    end
+
+    defp next_suffix(suffix, result, {changeset, callback, {into, _, _, _} = slug, taken}) do
+      with true <- taken?(result, taken),
+           {:ok, suffixed} <- suffixed(slug, suffix) do
+        {:cont, callback.(Changeset.force_change_attribute(changeset, into, suffixed))}
+      else
+        _done -> {:halt, result}
+      end
+    end
 
     defp suffixed({_into, value, slug_options, _max_suffix}, suffix) do
       suffix = "-#{suffix}"
