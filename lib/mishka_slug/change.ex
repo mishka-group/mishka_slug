@@ -112,9 +112,10 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
     With `unique_suffix: true` the action saves as usual, with no query of its own before it.
     Only when the save fails because the slug is taken does it save again as `slug-2`, then
-    `slug-3`, up to `slug-<max_suffix>`, and the first save that is not refused for the slug wins.
-    When every suffix is taken the error of the first save is returned. A slug that needs a suffix
-    is cut by whole words so the suffix fits the `:max_length`.
+    `slug-3`, up to `slug-<max_suffix>`, joined with the `:separator` (`slug_2` with `"_"`), and
+    the first save that is not refused for the slug wins. When every suffix is taken the error of
+    the first save is returned. A slug that needs a suffix is cut by whole words so the suffix
+    fits the `:max_length`.
 
         identities do
           identity :unique_slug, [:site_id, :slug]
@@ -247,7 +248,7 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
     end
 
     defp suffixed({_into, value, slug_options, _max_suffix}, suffix) do
-      suffix = "-#{suffix}"
+      suffix = "#{slug_options[:separator] || "-"}#{suffix}"
 
       slug_options =
         case slug_options[:max_length] do

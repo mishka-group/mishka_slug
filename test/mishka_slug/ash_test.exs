@@ -151,6 +151,12 @@ defmodule MishkaSlug.AshTest do
       assert {:ok, %{slug: "elixir-2"}} = create(Label, %{name: "Elixir"})
     end
 
+    test "the suffix is joined with the separator" do
+      assert {:ok, %{slug: "elixir_lang"}} = tag(:create_underscore, %{name: "Elixir Lang"})
+      assert {:ok, %{slug: "elixir_2"}} = tag(:create_underscore, %{name: "Elixir Lang"})
+      assert {:ok, %{slug: "elixir_3"}} = tag(:create_underscore, %{name: "Elixir Lang"})
+    end
+
     test "the suffix fits the max_length by dropping whole words" do
       assert {:ok, %{slug: "phoenix-live"}} = tag(%{name: "Phoenix Live"})
       assert {:ok, %{slug: "phoenix-2"}} = tag(%{name: "Phoenix Live"})

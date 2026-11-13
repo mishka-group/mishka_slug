@@ -235,7 +235,48 @@ defmodule MishkaSlug.OptionsTest do
     end
   end
 
+  describe ":separator" do
+    test "joins the words of every script" do
+      assert {:ok, "سلام_دنیا"} = MishkaSlug.slugify("سلام دنیا", separator: "_")
+      assert {:ok, "hello.world"} = MishkaSlug.slugify("Hello World", separator: ".")
+      assert {:ok, "привет--мир"} = MishkaSlug.slugify("Привет, мир!", separator: "--")
+      assert {:ok, "東京~タワー"} = MishkaSlug.slugify("東京 タワー", separator: "~")
+    end
+
+    test "is a word break even when :keep lists it" do
+      assert {:ok, "snake_case_title"} = MishkaSlug.slugify("snake_case title", separator: "_")
+      assert {:ok, "init"} = MishkaSlug.slugify("__init__", separator: "_")
+      assert {:ok, "v1.2_x"} = MishkaSlug.slugify("v1.2 x", separator: "_", keep: ["."])
+    end
+
+    test "a zwnj break gets the separator" do
+      assert {:ok, "قیمت_گذاری"} =
+               MishkaSlug.slugify("قیمت\u200Cگذاری", separator: "_", zwnj: :separator)
+    end
+
+    test "is counted in max_length" do
+      assert {:ok, "aa--bb"} = MishkaSlug.slugify("aa bb cc", separator: "--", max_length: 7)
+      assert {:ok, "aa-bb"} = MishkaSlug.slugify("aa bb cc", max_length: 7)
+    end
+
+    test "a slug made with it slugs again to itself" do
+      for separator <- ["_", ".", "~", "--"], keep <- [[], ["_"], ["."]] do
+        opts = [separator: separator, keep: keep]
+        {:ok, slug} = MishkaSlug.slugify("snake_case کتاب v1.2 Hello", opts)
+        assert {:ok, ^slug} = MishkaSlug.slugify(slug, opts)
+      end
+    end
+
+    test "refuses what is not URL-safe or is empty" do
+      for separator <- ["/", " ", "", "-/", "%", :_] do
+        assert_raise ArgumentError, ~r/separator/, fn ->
+          MishkaSlug.slugify("a b", separator: separator)
+        end
+      end
+    end
+  end
+
   test "unknown options raise" do
-    assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", separator: "_") end
+    assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", ignore: ["."]) end
   end
 end

@@ -38,12 +38,15 @@ defmodule MishkaSlug.Options do
 
     field :trim_kept, boolean(), default: false, derives: "validate(boolean)"
 
+    field :separator, String.t(), default: "-", validator: {__MODULE__, :validate_separator}
+
     field :max_length, pos_integer() | nil,
       default: nil,
       derives: "validate(optional=[integer, min_len=1])"
   end
 
   @keep ~w(. _ ~)
+  @separator ["-" | @keep]
 
   @doc false
   @spec validate_keep(atom(), term()) :: {:ok, atom(), list()} | {:error, atom(), String.t()}
@@ -55,6 +58,22 @@ defmodule MishkaSlug.Options do
   end
 
   def validate_keep(field, _chars), do: {:error, field, "must be a list of characters"}
+
+  @doc false
+  @spec validate_separator(atom(), term()) ::
+          {:ok, atom(), String.t()} | {:error, atom(), String.t()}
+  def validate_separator(field, separator) when is_binary(separator) and separator != "" do
+    case String.replace(separator, @separator, "") do
+      "" ->
+        {:ok, field, separator}
+
+      _other ->
+        {:error, field, "accepts only \"-\", \".\", \"_\" and \"~\", got #{inspect(separator)}"}
+    end
+  end
+
+  def validate_separator(field, _separator),
+    do: {:error, field, "must be a string of \"-\", \".\", \"_\" and \"~\""}
 
   @doc false
   @spec validate_script_resolver(atom(), term()) ::

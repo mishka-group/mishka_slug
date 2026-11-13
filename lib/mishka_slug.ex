@@ -108,9 +108,16 @@ defmodule MishkaSlug do
       into one grapheme is removed too, and the sign stays (Malayalam `ൎ.` gives `ൎ`). An edge `-` is always removed, and a slug
       that is only `.` or `..` is refused (`{:error, :empty}`) in both modes.
 
+    * `:separator` - `String.t()`, default `"-"`. What joins the words, in every script
+      (`"سلام دنیا"` with `"_"` gives `سلام_دنیا`). It is made of the URL-safe `-`, `.`, `_` and
+      `~` only (`"_"`, `"--"`), so the slug stays safe. A `:zwnj` break is a word break, so it
+      gets the separator too. A character of the separator is always a word break, even when
+      `:keep` lists it (`"_"` is kept by default), so a slug slugs again to itself:
+      `snake_case title` with `"_"` gives `snake_case_title`, and `__init__` gives `init`.
+
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
-      (what Postgres and Ash count). Whole words are kept while they fit; a first word that is
-      too long is cut between two graphemes.
+      (what Postgres and Ash count), separators included. Whole words are kept while they fit; a
+      first word that is too long is cut between two graphemes.
   """
 
   alias MishkaSlug.{Options, Scripts}
@@ -198,14 +205,14 @@ defmodule MishkaSlug do
   """
   @spec slugify(String.t(), keyword()) :: {:ok, String.t()} | {:error, reason()}
   def slugify(text, opts \\ []) when is_binary(text) do
-    opts = Options.validate!(opts)
+    opts = opts |> Options.validate!() |> separator_breaks()
 
     with :ok <- utf8(text),
          {:ok, allowed} <- Scripts.for_locales(opts[:locales], opts[:script_resolver]),
          {:ok, words} <- text |> clean(opts) |> words(opts) |> split(allowed, opts) do
       words
       |> truncate(opts)
-      |> finish()
+      |> finish(opts[:separator])
     end
   end
 
@@ -222,6 +229,9 @@ defmodule MishkaSlug do
       {:error, reason} -> raise ArgumentError, "cannot make a slug: #{inspect(reason)}"
     end
   end
+
+  defp separator_breaks(opts),
+    do: Keyword.update!(opts, :keep, &(&1 -- String.graphemes(opts[:separator])))
 
   defp utf8(text), do: if(String.valid?(text), do: :ok, else: {:error, :invalid_utf8})
 
@@ -385,9 +395,11 @@ defmodule MishkaSlug do
   defp truncate(words, nil, _opts), do: words
 
   defp truncate([first | _] = words, max, opts) do
+    separator = codepoints(opts[:separator])
+
     words
-    |> Enum.reduce_while({[], -1}, fn word, {acc, length} ->
-      length = length + 1 + codepoints(word)
+    |> Enum.reduce_while({[], -separator}, fn word, {acc, length} ->
+      length = length + separator + codepoints(word)
       if length <= max, do: {:cont, {[word | acc], length}}, else: {:halt, {acc, length}}
     end)
     |> case do
@@ -410,10 +422,10 @@ defmodule MishkaSlug do
 
   defp codepoints(text), do: text |> String.to_charlist() |> length()
 
-  defp finish(words) do
+  defp finish(words, separator) do
     case Enum.reject(words, &(&1 == "")) do
       [] -> {:error, :empty}
-      words -> words |> Enum.join("-") |> safe()
+      words -> words |> Enum.join(separator) |> safe()
     end
   end
 

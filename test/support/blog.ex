@@ -193,6 +193,11 @@ defmodule MishkaSlug.Test.Blog.Tag do
       change slugify(:name, into: :slug)
     end
 
+    create :create_underscore do
+      accept [:name]
+      change slugify(:name, into: :slug, separator: "_", unique_suffix: true)
+    end
+
     create :create_short do
       accept [:name]
       change {MishkaSlug.Change, from: :name, into: :slug, unique_suffix: true, max_suffix: 3}
