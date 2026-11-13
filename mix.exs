@@ -5,7 +5,7 @@
 defmodule MishkaSlug.MixProject do
   use Mix.Project
 
-  @version "0.0.1"
+  @version "0.0.2"
   @source_url "https://github.com/mishka-group/mishka_slug"
 
   def project do
@@ -46,7 +46,7 @@ defmodule MishkaSlug.MixProject do
     [
       {:guarded_struct, "~> 0.1"},
       {:gettext, "~> 1.0"},
-      # Only for `MishkaSlug.Change`, which is compiled when the host has Ash.
+      # Only for `MishkaSlug.Change` and `MishkaSlug.Ash`, which are compiled when the host has Ash.
       {:ash, "~> 3.37", optional: true},
       # The property tests use it, and Ash needs it in every env, so it cannot be `only: [:dev, :test]`.
       # Optional: a host without Ash does not fetch it.
