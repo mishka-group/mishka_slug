@@ -8,6 +8,7 @@ defmodule MishkaSlug.Test.Blog do
 
   resources do
     resource MishkaSlug.Test.Blog.Post
+    resource MishkaSlug.Test.Blog.Page
   end
 
   @doc "The languages of the site a changeset belongs to, as a CMS would read them per tenant."
@@ -58,6 +59,45 @@ defmodule MishkaSlug.Test.Blog.Post do
     update :update do
       accept [:title]
       change {MishkaSlug.Change, from: :title, into: :slug, mixed_scripts: :reject}
+    end
+  end
+end
+
+defmodule MishkaSlug.Test.Blog.Page do
+  @moduledoc "A page whose actions write their slug through the `MishkaSlug.Ash` extension."
+  use Ash.Resource,
+    domain: MishkaSlug.Test.Blog,
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [MishkaSlug.Ash]
+
+  ets do
+    private? true
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :title, :ci_string, public?: true
+    attribute :language, :string, public?: true, default: "fa"
+    attribute :slug, :string, public?: true, constraints: [max_length: 20]
+  end
+
+  actions do
+    defaults [:read]
+
+    create :create do
+      accept [:title, :language]
+
+      change slugify(:title,
+               into: :slug,
+               language: :language,
+               locales: {MishkaSlug.Test.Blog, :site_languages, [["fa", "en"]]},
+               keep: ["."]
+             )
+    end
+
+    update :update do
+      accept [:title]
+      change slugify(:title, into: :slug, mixed_scripts: :reject)
     end
   end
 end
