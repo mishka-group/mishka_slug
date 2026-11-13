@@ -13,7 +13,7 @@ defmodule MishkaSlug.Compat.AshSlugTest do
 
   | Difference | Why |
   |---|---|
-  | `lowercase?: false`, `separator`, `ignore` | `ash_slug` passes them to `Slug`; our change always writes a lowercase slug joined with `-`. |
+  | `ignore` | `ash_slug` passes it to `Slug`; our `:keep` keeps only the URL-safe `.`, `_` and `~`. `separator`, `truncate` and `lowercase?` are taken as they are. |
   | `attribute: :text1` in place | `ash_slug` can slugify an attribute into itself; our `:into` does too, but the test here uses a separate slug attribute. |
   | Language and script | Our change reads the post's language and the site's locales; `ash_slug` has neither. |
   """
@@ -70,5 +70,14 @@ defmodule MishkaSlug.Compat.AshSlugTest do
 
     assert error.field == :flag
     assert error.message =~ "is not a string value"
+  end
+
+  test "lowercase?: false keeps the case of the value" do
+    assert {:ok, page} =
+             MishkaSlug.Test.Blog.Page
+             |> Ash.Changeset.for_create(:create_ash_slug_style, %{title: "My Test Value!"})
+             |> Ash.create()
+
+    assert page.slug == "My_Test_Value"
   end
 end

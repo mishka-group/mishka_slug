@@ -8,7 +8,7 @@ Mishka Slug makes URL slugs that keep the original script: Persian stays Persian
 
 ```elixir
 # mix.exs, in deps/0
-{:mishka_slug, "~> 0.0.1"}
+{:mishka_slug, "~> 0.0.2"}
 ```
 
 Ash is optional. `MishkaSlug.Change` is compiled only when the host app has Ash.
@@ -69,7 +69,10 @@ All options are optional. An unknown option, or a value outside the accepted one
 | `:keep` | `["_"]` | A list of `"."`, `"_"`, `"~"` kept inside a word. It replaces the default. |
 | `:latin` | `:ascii` | `:keep` to leave accents as typed (`café`). |
 | `:trim_kept` | `false` | `true` to remove kept characters at a word's ends (`__init__` to `init`). The default keeps them like WordPress. |
-| `:max_length` | `nil` | The column has a limit. Counted in code points; whole words are kept. |
+| `:separator` | `"-"` | The words should be joined by `_`, `.`, `~` or a run of them (`"--"`). Its characters are always word breaks, even when `:keep` lists them. |
+| `:lowercase?` | `true` | `false` to keep the case as typed. Scripts without case are unchanged. |
+| `:max_length` | `nil` | The column has a limit. Counted in code points, separators included; whole words are kept. |
+| `:truncate` | `nil` | ash_slug's name for `:max_length`. Give one of the two; both raises. |
 
 Verified examples:
 
@@ -140,6 +143,12 @@ MishkaSlug.slugify("__init__ my_post_", trim_kept: true)   #=> {:ok, "init-my_po
 
 # :max_length
 MishkaSlug.slugify("hello world foo", max_length: 13) #=> {:ok, "hello-world"}
+
+# :separator, :lowercase?, :truncate (ash_slug's names)
+MishkaSlug.slugify("سلام دنیا", separator: "_")          #=> {:ok, "سلام_دنیا"}
+MishkaSlug.slugify("snake_case title", separator: "_")   #=> {:ok, "snake_case_title"}
+MishkaSlug.slugify("Hello World", lowercase?: false)     #=> {:ok, "Hello-World"}
+MishkaSlug.slugify("hello world foo", truncate: 13)      #=> {:ok, "hello-world"}
 
 # Always on
 MishkaSlug.slugify("pay​pal")                  #=> {:ok, "paypal"}

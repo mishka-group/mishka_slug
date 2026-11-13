@@ -25,6 +25,16 @@ actions do
 end
 ```
 
+With the `MishkaSlug.Ash` extension the same change has a shorter form, and both forms are a `MishkaSlug.Change`:
+
+```elixir
+use Ash.Resource, extensions: [MishkaSlug.Ash]
+
+change slugify(:title, into: :slug, language: :language, locales: {MyApp.Sites, :languages, []})
+```
+
+An ash_slug change line works as it is: `change slugify(:title, into: :slug, separator: "_", truncate: 30, lowercase?: false)`. `ignore` is not taken; use `:keep`.
+
 ## Change options
 
 Every `MishkaSlug.slugify/2` option is accepted as it is. These are the change's own:
@@ -33,6 +43,9 @@ Every `MishkaSlug.slugify/2` option is accepted as it is. These are the change's
 |---|---|---|
 | `:from` | required | The attribute or argument the slug is made from. |
 | `:into` | the `:from` value | The attribute that gets the slug. |
+| `:preset` | `nil` | A name in `config :mishka_slug, :presets`, or `{module, function, args}` returning options. Options beside it win. An unknown name is an `init/1` error. |
+| `:unique_suffix` | `false` | `true` saves a slug a unique identity refuses as `slug-2`, `slug-3`, … |
+| `:max_suffix` | `10` | The highest suffix `:unique_suffix` tries; then the first error is returned. |
 | `:skip_if_present?` | `false` | `true` leaves the slug alone when the action already sets `:into` (a user typed a custom slug). |
 | `:language` | `nil` | An attribute or argument name read from the changeset (`:language`), or a fixed code (`"fa"`). |
 | `:locales` | `[]` | A list (`["fa", "en"]`), or `{module, function, args}` called as `module.function(changeset, ...args)`, so the site's languages can come from the tenant. |
@@ -60,7 +73,9 @@ MishkaSlug.slugify(title, MishkaSlug.Change.slug_options(opts, changeset))
 ## Do and don't
 
 - Do put the change in each action that sets the title (create and update), or the slug will not follow the title.
-- Do put a unique identity on the slug attribute (`identities do identity :unique_slug, [:slug] end`, with a tenant attribute if you use multitenancy). The change does not check uniqueness.
+- Do put a unique identity on the slug attribute (`identities do identity :unique_slug, [:slug] end`, with a tenant attribute if you use multitenancy). The change does not check uniqueness; `unique_suffix: true` only reacts to the identity's error.
+- Do set `require_atomic? false` on an update action that uses `unique_suffix: true`; Ash refuses it as atomic. Don't count on the suffix in `bulk_create`/`bulk_update` or inside a transaction you opened yourself.
+- Do keep options many resources share in a preset (`config :mishka_slug, presets: [public: [...]]`) and write `change slugify(:title, preset: :public)`.
 - Do use `skip_if_present?: true` when users may supply their own slug, and run `slugify/2` on what they supply in a validation.
 - Don't change the slug of a published page on every title edit unless you redirect the old one; links break.
 - Don't read the language from a different source than the one used to build lookups.

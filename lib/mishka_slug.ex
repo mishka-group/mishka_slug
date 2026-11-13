@@ -108,9 +108,24 @@ defmodule MishkaSlug do
       into one grapheme is removed too, and the sign stays (Malayalam `ൎ.` gives `ൎ`). An edge `-` is always removed, and a slug
       that is only `.` or `..` is refused (`{:error, :empty}`) in both modes.
 
+    * `:separator` - `String.t()`, default `"-"`. What joins the words, in every script
+      (`"سلام دنیا"` with `"_"` gives `سلام_دنیا`). It is made of the URL-safe `-`, `.`, `_` and
+      `~` only (`"_"`, `"--"`), so the slug stays safe. A `:zwnj` break is a word break, so it
+      gets the separator too. A character of the separator is always a word break, even when
+      `:keep` lists it (`"_"` is kept by default), so a slug slugs again to itself:
+      `snake_case title` with `"_"` gives `snake_case_title`, and `__init__` gives `init`.
+
+    * `:lowercase?` - `boolean()`, default `true`. `false` keeps the case of the letters as
+      typed (`Hello World` gives `Hello-World`); scripts without case are the same either way.
+      With `latin: :ascii` an uppercase letter keeps its case when it is spelled out (`Æ` gives
+      `Ae`, German `Ä` gives `Ae`).
+
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
-      (what Postgres and Ash count). Whole words are kept while they fit; a first word that is
-      too long is cut between two graphemes.
+      (what Postgres and Ash count), separators included. Whole words are kept while they fit; a
+      first word that is too long is cut between two graphemes.
+
+    * `:truncate` - `pos_integer() | nil`, default `nil`. ash_slug's name for `:max_length`,
+      with the same cut. Give one of the two: both together is an invalid option.
   """
 
   alias MishkaSlug.{Options, Scripts}
@@ -133,7 +148,7 @@ defmodule MishkaSlug do
   @latin ~r/\p{sc=Latin}\p{M}*/u
   @mark ~r/\p{M}/u
   @alphanumeric ~r/[\p{L}\p{Nd}]/u
-  @catalan_dot ~r/l\x{00B7}(?=l)/u
+  @catalan_dot ~r/(?<=l)\x{00B7}(?=l)/iu
 
   @latin_letters %{
     "ß" => "s",
@@ -198,14 +213,14 @@ defmodule MishkaSlug do
   """
   @spec slugify(String.t(), keyword()) :: {:ok, String.t()} | {:error, reason()}
   def slugify(text, opts \\ []) when is_binary(text) do
-    opts = Options.validate!(opts)
+    opts = opts |> Options.validate!() |> separator_breaks()
 
     with :ok <- utf8(text),
          {:ok, allowed} <- Scripts.for_locales(opts[:locales], opts[:script_resolver]),
          {:ok, words} <- text |> clean(opts) |> words(opts) |> split(allowed, opts) do
       words
       |> truncate(opts)
-      |> finish()
+      |> finish(opts[:separator])
     end
   end
 
@@ -223,6 +238,9 @@ defmodule MishkaSlug do
     end
   end
 
+  defp separator_breaks(opts),
+    do: Keyword.update!(opts, :keep, &(&1 -- String.graphemes(opts[:separator])))
+
   defp utf8(text), do: if(String.valid?(text), do: :ok, else: {:error, :invalid_utf8})
 
   defp clean(text, opts) do
@@ -230,7 +248,7 @@ defmodule MishkaSlug do
     |> normalize(:nfkc)
     |> zwnj(opts[:zwnj])
     |> String.replace(@whitespace, " ")
-    |> lowercase(language(opts))
+    |> lowercase(opts[:lowercase?], language(opts))
     |> normalize(:nfkc)
     |> String.replace(@invisible, "")
     |> fold(fold?(opts))
@@ -253,11 +271,11 @@ defmodule MishkaSlug do
     |> String.replace(@latin, &ascii_letter(&1, letters))
   end
 
-  defp catalan(text, "ca"), do: String.replace(text, @catalan_dot, "l")
+  defp catalan(text, "ca"), do: String.replace(text, @catalan_dot, "")
   defp catalan(text, _language), do: text
 
   defp ascii_letter(letter, letters) do
-    case Map.fetch(letters, String.normalize(letter, :nfc)) do
+    case spell(String.normalize(letter, :nfc), letters) do
       {:ok, ascii} ->
         ascii
 
@@ -265,7 +283,24 @@ defmodule MishkaSlug do
         letter
         |> String.normalize(:nfd)
         |> String.replace(@mark, "")
-        |> String.replace(Map.keys(letters), &Map.fetch!(letters, &1))
+        |> String.replace(~r/./u, &spelled(&1, letters))
+    end
+  end
+
+  defp spelled(letter, letters) do
+    case spell(letter, letters) do
+      {:ok, ascii} -> ascii
+      :error -> letter
+    end
+  end
+
+  defp spell(letter, letters) do
+    lower = String.downcase(letter)
+
+    case Map.fetch(letters, lower) do
+      {:ok, ascii} when lower == letter -> {:ok, ascii}
+      {:ok, ascii} -> {:ok, String.capitalize(ascii)}
+      :error -> :error
     end
   end
 
@@ -293,9 +328,12 @@ defmodule MishkaSlug do
   defp zwnj(text, :remove), do: text
   defp zwnj(text, :separator), do: String.replace(text, "\u{200C}", " ")
 
-  defp lowercase(text, language) when language in ["tr", "az"], do: String.downcase(text, :turkic)
+  defp lowercase(text, false, _language), do: text
 
-  defp lowercase(text, _language),
+  defp lowercase(text, true, language) when language in ["tr", "az"],
+    do: String.downcase(text, :turkic)
+
+  defp lowercase(text, true, _language),
     do: text |> String.replace("İ", "i") |> String.downcase(:greek)
 
   defp fold?(opts) do
@@ -385,9 +423,11 @@ defmodule MishkaSlug do
   defp truncate(words, nil, _opts), do: words
 
   defp truncate([first | _] = words, max, opts) do
+    separator = codepoints(opts[:separator])
+
     words
-    |> Enum.reduce_while({[], -1}, fn word, {acc, length} ->
-      length = length + 1 + codepoints(word)
+    |> Enum.reduce_while({[], -separator}, fn word, {acc, length} ->
+      length = length + separator + codepoints(word)
       if length <= max, do: {:cont, {[word | acc], length}}, else: {:halt, {acc, length}}
     end)
     |> case do
@@ -410,10 +450,10 @@ defmodule MishkaSlug do
 
   defp codepoints(text), do: text |> String.to_charlist() |> length()
 
-  defp finish(words) do
+  defp finish(words, separator) do
     case Enum.reject(words, &(&1 == "")) do
       [] -> {:error, :empty}
-      words -> words |> Enum.join("-") |> safe()
+      words -> words |> Enum.join(separator) |> safe()
     end
   end
 

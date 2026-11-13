@@ -8,3 +8,15 @@ import Config
 config :ash, default_string_length_count: :codepoints
 
 config :logger, level: :warning
+
+# Only for the test resource: the preset a host app would keep for the slugs of its public pages.
+config :mishka_slug,
+  presets: [
+    public: [
+      from: :title,
+      into: :slug,
+      language: :language,
+      locales: {MishkaSlug.Test.Blog, :site_languages, [["fa", "en"]]},
+      keep: ["."]
+    ]
+  ]

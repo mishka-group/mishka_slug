@@ -14,6 +14,16 @@ defmodule MishkaSlug.OptionsTest do
       assert {:ok, "سلام-hello-привет-שלום"} = MishkaSlug.slugify(title)
     end
 
+    test "a Common mark after a dropped letter is dropped with it, never left alone" do
+      opts = [locales: ["he", "el", "fa"], keep: [".", "~"], digits: :ascii, latin: :keep]
+      opts = [zwnj: :separator, max_length: 4] ++ opts
+
+      assert {:error, :no_allowed_script} = MishkaSlug.slugify("\u{CF5D}\u{1CF7}", opts)
+      assert {:ok, "1"} = MishkaSlug.slugify("\u{CF5D}\u{1CF7}1", opts)
+      assert {:ok, "a\u{1CF7}"} = MishkaSlug.slugify("a\u{1CF7}", opts)
+      assert {:ok, "\u{CF5D}\u{1CF7}"} = MishkaSlug.slugify("\u{CF5D}\u{1CF7}", locales: [])
+    end
+
     test "a homoglyph outside the site's scripts is dropped, not kept inside the word" do
       assert {:ok, "p-ypal"} = MishkaSlug.slugify("p\u{0430}ypal", locales: ["en"])
     end
@@ -235,7 +245,104 @@ defmodule MishkaSlug.OptionsTest do
     end
   end
 
+  describe ":separator" do
+    test "joins the words of every script" do
+      assert {:ok, "سلام_دنیا"} = MishkaSlug.slugify("سلام دنیا", separator: "_")
+      assert {:ok, "hello.world"} = MishkaSlug.slugify("Hello World", separator: ".")
+      assert {:ok, "привет--мир"} = MishkaSlug.slugify("Привет, мир!", separator: "--")
+      assert {:ok, "東京~タワー"} = MishkaSlug.slugify("東京 タワー", separator: "~")
+    end
+
+    test "is a word break even when :keep lists it" do
+      assert {:ok, "snake_case_title"} = MishkaSlug.slugify("snake_case title", separator: "_")
+      assert {:ok, "init"} = MishkaSlug.slugify("__init__", separator: "_")
+      assert {:ok, "v1.2_x"} = MishkaSlug.slugify("v1.2 x", separator: "_", keep: ["."])
+    end
+
+    test "a zwnj break gets the separator" do
+      assert {:ok, "قیمت_گذاری"} =
+               MishkaSlug.slugify("قیمت\u200Cگذاری", separator: "_", zwnj: :separator)
+    end
+
+    test "is counted in max_length" do
+      assert {:ok, "aa--bb"} = MishkaSlug.slugify("aa bb cc", separator: "--", max_length: 7)
+      assert {:ok, "aa-bb"} = MishkaSlug.slugify("aa bb cc", max_length: 7)
+    end
+
+    test "a slug made with it slugs again to itself" do
+      for separator <- ["_", ".", "~", "--"], keep <- [[], ["_"], ["."]] do
+        opts = [separator: separator, keep: keep]
+        {:ok, slug} = MishkaSlug.slugify("snake_case کتاب v1.2 Hello", opts)
+        assert {:ok, ^slug} = MishkaSlug.slugify(slug, opts)
+      end
+    end
+
+    test "refuses what is not URL-safe or is empty" do
+      for separator <- ["/", " ", "", "-/", "%", :_] do
+        assert_raise ArgumentError, ~r/separator/, fn ->
+          MishkaSlug.slugify("a b", separator: separator)
+        end
+      end
+    end
+  end
+
+  describe ":truncate" do
+    test "is :max_length by ash_slug's name, with the same cut" do
+      for title <- ["What's up? A lot.", "یک دو سه چهار پنج", "हिन्दी भाषा"], max <- 1..12 do
+        assert MishkaSlug.slugify(title, truncate: max) ==
+                 MishkaSlug.slugify(title, max_length: max)
+      end
+    end
+
+    test "comes back from validation as :max_length" do
+      assert {:ok, opts} = MishkaSlug.Options.validate(truncate: 30)
+      assert opts[:max_length] == 30
+      refute Keyword.has_key?(opts, :truncate)
+    end
+
+    test "with :max_length too is an invalid option" do
+      assert {:error, message} = MishkaSlug.Options.validate(max_length: 10, truncate: 20)
+      assert message =~ "not both"
+      assert_raise ArgumentError, fn -> MishkaSlug.slugify("a", max_length: 1, truncate: 1) end
+    end
+  end
+
+  describe ":lowercase?" do
+    test "false keeps the case of the letters as typed" do
+      assert {:ok, "Hello-World"} = MishkaSlug.slugify("Hello World", lowercase?: false)
+      assert {:ok, "Привет-Мир"} = MishkaSlug.slugify("Привет, Мир!", lowercase?: false)
+      assert {:ok, "hello-world"} = MishkaSlug.slugify("Hello World")
+    end
+
+    test "scripts without case are the same either way" do
+      for title <- ["کتاب React ۱۰", "東京 タワー", "हिन्दी भाषा"] do
+        {:ok, slug} = MishkaSlug.slugify(title, lowercase?: false)
+
+        assert slug ==
+                 title |> MishkaSlug.slugify!() |> then(&String.replace(&1, "react", "React"))
+      end
+    end
+
+    test "false keeps the case of a Latin letter spelled out by latin: :ascii" do
+      assert {:ok, "Cafe-Creme"} = MishkaSlug.slugify("Café Crème", lowercase?: false)
+      assert {:ok, "Aero-OeRe-Lodz"} = MishkaSlug.slugify("Ærø ŒRe Łódź", lowercase?: false)
+
+      assert {:ok, "Aepfel-Strasse"} =
+               MishkaSlug.slugify("Äpfel Straße", lowercase?: false, language: "de")
+    end
+
+    test "a slug made with false slugs again to itself" do
+      opts = [lowercase?: false]
+      {:ok, slug} = MishkaSlug.slugify("Ærø Café ΟΔΟΣ Hello", opts)
+      assert {:ok, ^slug} = MishkaSlug.slugify(slug, opts)
+    end
+
+    test "must be a boolean" do
+      assert_raise ArgumentError, fn -> MishkaSlug.slugify("a", lowercase?: "no") end
+    end
+  end
+
   test "unknown options raise" do
-    assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", separator: "_") end
+    assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", ignore: ["."]) end
   end
 end
