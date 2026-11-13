@@ -115,6 +115,11 @@ defmodule MishkaSlug do
       `:keep` lists it (`"_"` is kept by default), so a slug slugs again to itself:
       `snake_case title` with `"_"` gives `snake_case_title`, and `__init__` gives `init`.
 
+    * `:lowercase?` - `boolean()`, default `true`. `false` keeps the case of the letters as
+      typed (`Hello World` gives `Hello-World`); scripts without case are the same either way.
+      With `latin: :ascii` an uppercase letter keeps its case when it is spelled out (`Æ` gives
+      `Ae`, German `Ä` gives `Ae`).
+
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
       (what Postgres and Ash count), separators included. Whole words are kept while they fit; a
       first word that is too long is cut between two graphemes.
@@ -143,7 +148,7 @@ defmodule MishkaSlug do
   @latin ~r/\p{sc=Latin}\p{M}*/u
   @mark ~r/\p{M}/u
   @alphanumeric ~r/[\p{L}\p{Nd}]/u
-  @catalan_dot ~r/l\x{00B7}(?=l)/u
+  @catalan_dot ~r/(?<=l)\x{00B7}(?=l)/iu
 
   @latin_letters %{
     "ß" => "s",
@@ -243,7 +248,7 @@ defmodule MishkaSlug do
     |> normalize(:nfkc)
     |> zwnj(opts[:zwnj])
     |> String.replace(@whitespace, " ")
-    |> lowercase(language(opts))
+    |> lowercase(opts[:lowercase?], language(opts))
     |> normalize(:nfkc)
     |> String.replace(@invisible, "")
     |> fold(fold?(opts))
@@ -266,11 +271,11 @@ defmodule MishkaSlug do
     |> String.replace(@latin, &ascii_letter(&1, letters))
   end
 
-  defp catalan(text, "ca"), do: String.replace(text, @catalan_dot, "l")
+  defp catalan(text, "ca"), do: String.replace(text, @catalan_dot, "")
   defp catalan(text, _language), do: text
 
   defp ascii_letter(letter, letters) do
-    case Map.fetch(letters, String.normalize(letter, :nfc)) do
+    case spell(String.normalize(letter, :nfc), letters) do
       {:ok, ascii} ->
         ascii
 
@@ -278,7 +283,24 @@ defmodule MishkaSlug do
         letter
         |> String.normalize(:nfd)
         |> String.replace(@mark, "")
-        |> String.replace(Map.keys(letters), &Map.fetch!(letters, &1))
+        |> String.replace(~r/./u, &spelled(&1, letters))
+    end
+  end
+
+  defp spelled(letter, letters) do
+    case spell(letter, letters) do
+      {:ok, ascii} -> ascii
+      :error -> letter
+    end
+  end
+
+  defp spell(letter, letters) do
+    lower = String.downcase(letter)
+
+    case Map.fetch(letters, lower) do
+      {:ok, ascii} when lower == letter -> {:ok, ascii}
+      {:ok, ascii} -> {:ok, String.capitalize(ascii)}
+      :error -> :error
     end
   end
 
@@ -306,9 +328,12 @@ defmodule MishkaSlug do
   defp zwnj(text, :remove), do: text
   defp zwnj(text, :separator), do: String.replace(text, "\u{200C}", " ")
 
-  defp lowercase(text, language) when language in ["tr", "az"], do: String.downcase(text, :turkic)
+  defp lowercase(text, false, _language), do: text
 
-  defp lowercase(text, _language),
+  defp lowercase(text, true, language) when language in ["tr", "az"],
+    do: String.downcase(text, :turkic)
+
+  defp lowercase(text, true, _language),
     do: text |> String.replace("İ", "i") |> String.downcase(:greek)
 
   defp fold?(opts) do

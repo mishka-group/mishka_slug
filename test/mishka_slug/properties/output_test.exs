@@ -130,6 +130,26 @@ defmodule MishkaSlug.Properties.OutputTest do
     end
   end
 
+  property "with a separator and lowercase?: false, a slug is URL-safe and slugs again to itself" do
+    check all(
+            text <- SlugGen.text(),
+            opts <- SlugGen.options(),
+            separator <- member_of(["-", "_", ".", "~", "--", "_-"]),
+            lowercase? <- boolean(),
+            max_runs: @runs * 2
+          ) do
+      opts = Keyword.merge(opts, separator: separator, lowercase?: lowercase?)
+
+      with {:ok, slug} <- slug(text, opts) do
+        refute slug =~ @unsafe
+        refute Enum.any?(@delimiters, &String.contains?(slug, &1))
+        refute slug in [".", ".."]
+        assert String.length(slug) <= (opts[:max_length] || String.length(slug))
+        assert slug(slug, opts) == {:ok, slug}
+      end
+    end
+  end
+
   property "with locales, slugging a slug again gives the same slug" do
     check all(text <- SlugGen.text(), opts <- SlugGen.options(), max_runs: @runs * 2) do
       with {:ok, slug} <- slug(text, opts), do: assert(slug(slug, opts) == {:ok, slug})

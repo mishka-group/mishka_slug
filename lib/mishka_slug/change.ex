@@ -64,6 +64,11 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
     (see `MishkaSlug.Messages`) in the locale of the calling process. When `:max_length` is not given, the
     `max_length` constraint of the `:into` attribute is used.
 
+    The options ash_slug's `slugify` change takes, `:separator`, `:truncate` (a name for
+    `:max_length`), `:lowercase?`, `:into` and `:skip_if_present?`, mean the same here, so
+    `change slugify(:title, into: :slug, separator: "_", truncate: 30, lowercase?: false)` from an
+    ash_slug resource works as it is with `MishkaSlug.Ash`.
+
     ## Options
 
     The options of `MishkaSlug.slugify/2` (see `MishkaSlug.Options`) are accepted as they are,
@@ -349,6 +354,7 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       end
     end
 
+    defp locales(nil, _changeset), do: []
     defp locales(locales, _changeset) when is_list(locales), do: locales
 
     defp locales({module, function, args}, changeset),

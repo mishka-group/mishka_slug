@@ -60,6 +60,35 @@ defmodule MishkaSlug.AshTest do
     end
   end
 
+  describe "ash_slug's options" do
+    test "an ash_slug change line works as it is" do
+      assert {:ok, %{slug: "Hello_World_۱۰"}} =
+               create(Page, :create_ash_slug_style, %{title: "Hello, World! ۱۰"})
+
+      assert {:ok, %{slug: "سلام_دنیا"}} =
+               create(Page, :create_ash_slug_style, %{title: "سلام دنیا"})
+    end
+
+    test "truncate is the slug's max_length, in place of the attribute's" do
+      {MishkaSlug.Change, opts} = change_of(Page, :create_ash_slug_style)
+      assert {:ok, ready} = MishkaSlug.Change.init(opts)
+      changeset = Ash.Changeset.for_create(Page, :create_ash_slug_style, %{})
+
+      for opts <- [opts, ready] do
+        slug_options = MishkaSlug.Change.slug_options(opts, changeset)
+        assert slug_options[:max_length] == 30
+        refute Keyword.has_key?(slug_options, :truncate)
+        assert slug_options[:separator] == "_"
+        assert slug_options[:lowercase?] == false
+      end
+    end
+
+    test "truncate and max_length together are an init error" do
+      assert {:error, message} = MishkaSlug.Change.init(from: :title, truncate: 5, max_length: 5)
+      assert message =~ "not both"
+    end
+  end
+
   describe ":preset" do
     test "a preset from config makes the slug the full options make" do
       for action <- [:create_preset, :create_preset_tuple] do

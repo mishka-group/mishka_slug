@@ -132,6 +132,11 @@ defmodule MishkaSlug.Test.Blog.Page do
       change slugify(:title, into: :slug, mixed_scripts: :reject)
     end
 
+    create :create_ash_slug_style do
+      accept [:title]
+      change slugify(:title, into: :slug, separator: "_", truncate: 30, lowercase?: false)
+    end
+
     update :update_unique do
       accept [:title]
       change slugify(:title, into: :slug, unique_suffix: true)

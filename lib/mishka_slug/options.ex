@@ -41,6 +41,8 @@ defmodule MishkaSlug.Options do
 
     field :separator, String.t(), default: "-", validator: {__MODULE__, :validate_separator}
 
+    field :lowercase?, boolean(), default: true, derives: "validate(boolean)"
+
     field :max_length, pos_integer() | nil,
       default: nil,
       derives: "validate(optional=[integer, min_len=1])"

@@ -297,6 +297,41 @@ defmodule MishkaSlug.OptionsTest do
     end
   end
 
+  describe ":lowercase?" do
+    test "false keeps the case of the letters as typed" do
+      assert {:ok, "Hello-World"} = MishkaSlug.slugify("Hello World", lowercase?: false)
+      assert {:ok, "Привет-Мир"} = MishkaSlug.slugify("Привет, Мир!", lowercase?: false)
+      assert {:ok, "hello-world"} = MishkaSlug.slugify("Hello World")
+    end
+
+    test "scripts without case are the same either way" do
+      for title <- ["کتاب React ۱۰", "東京 タワー", "हिन्दी भाषा"] do
+        {:ok, slug} = MishkaSlug.slugify(title, lowercase?: false)
+
+        assert slug ==
+                 title |> MishkaSlug.slugify!() |> then(&String.replace(&1, "react", "React"))
+      end
+    end
+
+    test "false keeps the case of a Latin letter spelled out by latin: :ascii" do
+      assert {:ok, "Cafe-Creme"} = MishkaSlug.slugify("Café Crème", lowercase?: false)
+      assert {:ok, "Aero-OeRe-Lodz"} = MishkaSlug.slugify("Ærø ŒRe Łódź", lowercase?: false)
+
+      assert {:ok, "Aepfel-Strasse"} =
+               MishkaSlug.slugify("Äpfel Straße", lowercase?: false, language: "de")
+    end
+
+    test "a slug made with false slugs again to itself" do
+      opts = [lowercase?: false]
+      {:ok, slug} = MishkaSlug.slugify("Ærø Café ΟΔΟΣ Hello", opts)
+      assert {:ok, ^slug} = MishkaSlug.slugify(slug, opts)
+    end
+
+    test "must be a boolean" do
+      assert_raise ArgumentError, fn -> MishkaSlug.slugify("a", lowercase?: "no") end
+    end
+  end
+
   test "unknown options raise" do
     assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", ignore: ["."]) end
   end
