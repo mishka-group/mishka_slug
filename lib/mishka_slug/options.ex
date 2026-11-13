@@ -8,7 +8,8 @@ defmodule MishkaSlug.Options do
 
   The schema lives here once. `validate/1` checks a keyword list against it, fills the defaults
   and refuses any key it does not know, so a misspelled option is an error and never a silently
-  ignored one. See `MishkaSlug.slugify/2` for what each option does.
+  ignored one. `:truncate`, ash_slug's name for `:max_length`, comes back as `:max_length`. See
+  `MishkaSlug.slugify/2` for what each option does.
   """
 
   use GuardedStruct
@@ -41,6 +42,10 @@ defmodule MishkaSlug.Options do
     field :separator, String.t(), default: "-", validator: {__MODULE__, :validate_separator}
 
     field :max_length, pos_integer() | nil,
+      default: nil,
+      derives: "validate(optional=[integer, min_len=1])"
+
+    field :truncate, pos_integer() | nil,
       default: nil,
       derives: "validate(optional=[integer, min_len=1])"
   end
@@ -95,9 +100,21 @@ defmodule MishkaSlug.Options do
   @spec validate(keyword()) :: {:ok, keyword()} | {:error, String.t()}
   def validate(opts) when is_list(opts) do
     case builder(Map.new(opts)) do
-      {:ok, struct} -> {:ok, struct |> Map.from_struct() |> Map.to_list()}
+      {:ok, struct} -> struct |> Map.from_struct() |> truncate()
       {:error, errors} -> {:error, message(errors)}
     end
+  end
+
+  defp truncate(%{max_length: max_length, truncate: truncate})
+       when is_integer(max_length) and is_integer(truncate),
+       do: {:error, "invalid options: give :max_length or :truncate, not both"}
+
+  defp truncate(%{truncate: truncate} = opts) do
+    {:ok,
+     opts
+     |> Map.delete(:truncate)
+     |> Map.update!(:max_length, &(&1 || truncate))
+     |> Map.to_list()}
   end
 
   @doc """

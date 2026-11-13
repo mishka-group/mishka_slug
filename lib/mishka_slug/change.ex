@@ -215,7 +215,11 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       |> Keyword.drop([:from, :into, :skip_if_present?, :unique_suffix, :max_suffix])
       |> Keyword.put(:language, language(opts[:language], changeset))
       |> Keyword.put(:locales, locales(opts[:locales], changeset))
-      |> Keyword.put(:max_length, opts[:max_length] || max_length(changeset.resource, into))
+      |> Keyword.delete(:truncate)
+      |> Keyword.put(
+        :max_length,
+        opts[:max_length] || opts[:truncate] || max_length(changeset.resource, into)
+      )
     end
 
     defp unique_suffix(changeset, true, {into, _value, _slug_options, _max_suffix} = slug) do

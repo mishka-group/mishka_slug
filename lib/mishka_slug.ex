@@ -118,6 +118,9 @@ defmodule MishkaSlug do
     * `:max_length` - `pos_integer() | nil`, default `nil`. The longest slug, in code points
       (what Postgres and Ash count), separators included. Whole words are kept while they fit; a
       first word that is too long is cut between two graphemes.
+
+    * `:truncate` - `pos_integer() | nil`, default `nil`. ash_slug's name for `:max_length`,
+      with the same cut. Give one of the two: both together is an invalid option.
   """
 
   alias MishkaSlug.{Options, Scripts}

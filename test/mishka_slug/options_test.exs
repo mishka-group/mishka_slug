@@ -276,6 +276,27 @@ defmodule MishkaSlug.OptionsTest do
     end
   end
 
+  describe ":truncate" do
+    test "is :max_length by ash_slug's name, with the same cut" do
+      for title <- ["What's up? A lot.", "یک دو سه چهار پنج", "हिन्दी भाषा"], max <- 1..12 do
+        assert MishkaSlug.slugify(title, truncate: max) ==
+                 MishkaSlug.slugify(title, max_length: max)
+      end
+    end
+
+    test "comes back from validation as :max_length" do
+      assert {:ok, opts} = MishkaSlug.Options.validate(truncate: 30)
+      assert opts[:max_length] == 30
+      refute Keyword.has_key?(opts, :truncate)
+    end
+
+    test "with :max_length too is an invalid option" do
+      assert {:error, message} = MishkaSlug.Options.validate(max_length: 10, truncate: 20)
+      assert message =~ "not both"
+      assert_raise ArgumentError, fn -> MishkaSlug.slugify("a", max_length: 1, truncate: 1) end
+    end
+  end
+
   test "unknown options raise" do
     assert_raise ArgumentError, fn -> MishkaSlug.slugify("x", ignore: ["."]) end
   end
