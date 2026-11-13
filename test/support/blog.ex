@@ -14,6 +14,11 @@ defmodule MishkaSlug.Test.Blog do
   @doc "The languages of the site a changeset belongs to, as a CMS would read them per tenant."
   @spec site_languages(Ash.Changeset.t(), [String.t()]) :: [String.t()]
   def site_languages(_changeset, languages), do: languages
+
+  @doc "A preset as a host would build it in code: Persian and English, `.` kept."
+  @spec preset(keyword()) :: keyword()
+  def preset(extra \\ []),
+    do: [locales: ["fa", "en"], keep: ["."]] ++ extra
 end
 
 defmodule MishkaSlug.Test.Blog.Post do
@@ -98,6 +103,26 @@ defmodule MishkaSlug.Test.Blog.Page do
     update :update do
       accept [:title]
       change slugify(:title, into: :slug, mixed_scripts: :reject)
+    end
+
+    create :create_preset do
+      accept [:title, :language]
+      change slugify(:title, preset: :public)
+    end
+
+    create :create_preset_tuple do
+      accept [:title, :language]
+      change {MishkaSlug.Change, preset: :public}
+    end
+
+    create :create_preset_mfa do
+      accept [:title, :language]
+      change slugify(:title, into: :slug, preset: {MishkaSlug.Test.Blog, :preset, []})
+    end
+
+    create :create_preset_override do
+      accept [:title, :language]
+      change slugify(:title, preset: :public, keep: [], latin: :keep, max_length: 9)
     end
   end
 end

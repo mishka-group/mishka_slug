@@ -84,6 +84,22 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       * `:locales` - `[String.t()] | {module, function, args}`, default `[]`. The site's
         languages: a list, or `{module, function, args}` called with the changeset first, so a
         CMS can read them for the changeset's tenant.
+
+      * `:preset` - `atom() | {module, function, args}`, default `nil`. A named set of options
+        the app keeps in one place, so every resource that makes the same kind of slug says it once:
+
+            # config/config.exs
+            config :mishka_slug,
+              presets: [
+                public: [from: :slug, into: :slug, locales: {MyApp.Sites, :languages, []}]
+              ]
+
+            change {MishkaSlug.Change, preset: :public}
+            change {MishkaSlug.Change, preset: :public, from: :title}
+
+        A name is looked up in `config :mishka_slug, :presets`; `{module, function, args}` is
+        called and returns the options. Options given next to `:preset` win over the preset's.
+        An unknown name, or a preset that is not a keyword list, makes `init/1` return an error.
     """
 
     use Ash.Resource.Change
@@ -97,7 +113,8 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
     @impl true
     def init(opts) when is_list(opts) do
-      with {:ok, own} <- ChangeOptions.validate(Keyword.take(opts, @own_keys)),
+      with {:ok, opts} <- with_preset(opts),
+           {:ok, own} <- ChangeOptions.validate(Keyword.take(opts, @own_keys)),
            {:ok, slug} <- Options.validate(Keyword.drop(opts, @own_keys)) do
         {:ok, Keyword.merge(slug, own)}
       end
@@ -143,12 +160,13 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
     @doc """
     Returns the `MishkaSlug.slugify/2` options this change uses for a changeset.
 
-    It resolves `:language` and `:locales` against the changeset and fills `:max_length` from the
+    It merges in the options of a `:preset`, resolves `:language` and `:locales` against the changeset and fills `:max_length` from the
     `:into` attribute, so code that makes a slug outside an action (a preview in a form, for
     example) gets the same slug the action will write.
     """
     @spec slug_options(keyword(), Changeset.t()) :: keyword()
     def slug_options(opts, changeset) do
+      opts = with_preset!(opts)
       into = opts[:into] || opts[:from]
 
       opts
@@ -156,6 +174,47 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       |> Keyword.put(:language, language(opts[:language], changeset))
       |> Keyword.put(:locales, locales(opts[:locales], changeset))
       |> Keyword.put(:max_length, opts[:max_length] || max_length(changeset.resource, into))
+    end
+
+    defp with_preset!(opts) do
+      case with_preset(opts) do
+        {:ok, opts} -> opts
+        {:error, message} -> raise ArgumentError, message
+      end
+    end
+
+    defp with_preset(opts) do
+      case Keyword.pop(opts, :preset) do
+        {nil, opts} ->
+          {:ok, opts}
+
+        {preset, opts} ->
+          with {:ok, preset} <- preset(preset), do: {:ok, Keyword.merge(preset, opts)}
+      end
+    end
+
+    defp preset({module, function, args} = mfa)
+         when is_atom(module) and is_atom(function) and is_list(args),
+         do: keyword(apply(module, function, args), inspect(mfa))
+
+    defp preset(name) when is_atom(name) do
+      case Keyword.fetch(Application.get_env(:mishka_slug, :presets, []), name) do
+        {:ok, preset} ->
+          keyword(preset, "#{inspect(name)} in config :mishka_slug, :presets")
+
+        :error ->
+          {:error,
+           "invalid options: preset: no preset #{inspect(name)} in config :mishka_slug, :presets"}
+      end
+    end
+
+    defp preset(_preset),
+      do: {:error, "invalid options: preset: must be a name or {module, function, args}"}
+
+    defp keyword(preset, source) do
+      if Keyword.keyword?(preset),
+        do: {:ok, preset},
+        else: {:error, "invalid options: preset: #{source} must be a keyword list"}
     end
 
     defp fetch(changeset, from) do
