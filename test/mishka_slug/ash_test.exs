@@ -5,7 +5,7 @@
 defmodule MishkaSlug.AshTest do
   use ExUnit.Case, async: true
 
-  alias MishkaSlug.Test.Blog.{Page, Post}
+  alias MishkaSlug.Test.Blog.{Label, Page, Post, Tag}
 
   defp create(resource, action \\ :create, input) do
     resource
@@ -124,8 +124,6 @@ defmodule MishkaSlug.AshTest do
   end
 
   describe ":unique_suffix" do
-    alias MishkaSlug.Test.Blog.Tag
-
     defp tag(action \\ :create, input), do: create(Tag, action, input)
 
     defp taken?(%Ash.Error.Invalid{errors: errors}),
@@ -149,8 +147,6 @@ defmodule MishkaSlug.AshTest do
     end
 
     test "a unique index error, as AshPostgres returns it, gets the suffix too" do
-      alias MishkaSlug.Test.Blog.Label
-
       assert {:ok, %{slug: "elixir"}} = create(Label, %{name: "Elixir"})
       assert {:ok, %{slug: "elixir-2"}} = create(Label, %{name: "Elixir"})
     end

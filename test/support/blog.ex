@@ -212,11 +212,20 @@ defmodule MishkaSlug.Test.Blog.Tag do
 end
 
 defmodule MishkaSlug.Test.Blog.Label do
-  @moduledoc "A label whose unique slug is refused the way a Postgres unique index refuses it."
+  @moduledoc """
+  A label whose unique slug is refused the way a Postgres unique index refuses it.
+
+  Its identity has no `pre_check_with`, as on Postgres, so the refusal is the before-action
+  `MishkaSlug.Test.Blog.unique_index/2` gives. `testing_identities/0` tells Ash's
+  `RequirePreCheckWith` verifier that ETS not checking the identity is meant.
+  """
   use Ash.Resource,
     domain: MishkaSlug.Test.Blog,
     data_layer: Ash.DataLayer.Ets,
     extensions: [MishkaSlug.Ash]
+
+  @doc false
+  def testing_identities, do: true
 
   ets do
     private? true
