@@ -9,11 +9,38 @@ defmodule MishkaSlug.Test.Blog do
   resources do
     resource MishkaSlug.Test.Blog.Post
     resource MishkaSlug.Test.Blog.Page
+    resource MishkaSlug.Test.Blog.Tag
+    resource MishkaSlug.Test.Blog.Label
   end
 
   @doc "The languages of the site a changeset belongs to, as a CMS would read them per tenant."
   @spec site_languages(Ash.Changeset.t(), [String.t()]) :: [String.t()]
   def site_languages(_changeset, languages), do: languages
+
+  @doc """
+  Refuses a label whose slug is taken with the error AshPostgres makes of a unique index violation
+  (`AshPostgres.DataLayer` turns it into an `InvalidAttribute` on the identity's first key, with
+  `constraint_type: :unique`), for a data layer that has no unique index.
+  """
+  @spec unique_index(Ash.Changeset.t(), Ash.Resource.Change.Context.t()) :: Ash.Changeset.t()
+  def unique_index(changeset, _context) do
+    slug = Ash.Changeset.get_attribute(changeset, :slug)
+
+    case Ash.read!(MishkaSlug.Test.Blog.Label) |> Enum.any?(&(&1.slug == slug)) do
+      false ->
+        changeset
+
+      true ->
+        Ash.Changeset.add_error(
+          changeset,
+          Ash.Error.Changes.InvalidAttribute.exception(
+            field: :slug,
+            message: "has already been taken",
+            private_vars: [constraint: "labels_unique_slug_index", constraint_type: :unique]
+          )
+        )
+    end
+  end
 
   @doc "A preset as a host would build it in code: Persian and English, `.` kept."
   @spec preset(keyword()) :: keyword()
@@ -105,6 +132,11 @@ defmodule MishkaSlug.Test.Blog.Page do
       change slugify(:title, into: :slug, mixed_scripts: :reject)
     end
 
+    update :update_unique do
+      accept [:title]
+      change slugify(:title, into: :slug, unique_suffix: true)
+    end
+
     create :create_preset do
       accept [:title, :language]
       change slugify(:title, preset: :public)
@@ -123,6 +155,90 @@ defmodule MishkaSlug.Test.Blog.Page do
     create :create_preset_override do
       accept [:title, :language]
       change slugify(:title, preset: :public, keep: [], latin: :keep, max_length: 9)
+    end
+  end
+end
+
+defmodule MishkaSlug.Test.Blog.Tag do
+  @moduledoc "A tag whose slug is unique, checked by an identity, for `:unique_suffix`."
+  use Ash.Resource,
+    domain: MishkaSlug.Test.Blog,
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [MishkaSlug.Ash]
+
+  ets do
+    private? true
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, public?: true
+    attribute :slug, :string, public?: true, constraints: [max_length: 12]
+  end
+
+  identities do
+    identity :unique_slug, [:slug], pre_check?: true
+  end
+
+  actions do
+    defaults [:read]
+
+    create :create do
+      accept [:name]
+      change slugify(:name, into: :slug, unique_suffix: true)
+    end
+
+    create :create_strict do
+      accept [:name]
+      change slugify(:name, into: :slug)
+    end
+
+    create :create_short do
+      accept [:name]
+      change {MishkaSlug.Change, from: :name, into: :slug, unique_suffix: true, max_suffix: 3}
+    end
+
+    create :create_with_slug do
+      accept [:name, :slug]
+      change slugify(:name, into: :slug, skip_if_present?: true, unique_suffix: true)
+    end
+
+    update :update do
+      accept [:name]
+      require_atomic? false
+      change slugify(:name, into: :slug, unique_suffix: true)
+    end
+  end
+end
+
+defmodule MishkaSlug.Test.Blog.Label do
+  @moduledoc "A label whose unique slug is refused the way a Postgres unique index refuses it."
+  use Ash.Resource,
+    domain: MishkaSlug.Test.Blog,
+    data_layer: Ash.DataLayer.Ets,
+    extensions: [MishkaSlug.Ash]
+
+  ets do
+    private? true
+  end
+
+  attributes do
+    uuid_primary_key :id
+    attribute :name, :string, public?: true
+    attribute :slug, :string, public?: true
+  end
+
+  identities do
+    identity :unique_slug, [:slug]
+  end
+
+  actions do
+    defaults [:read]
+
+    create :create do
+      accept [:name]
+      change slugify(:name, into: :slug, unique_suffix: true)
+      change before_action(&MishkaSlug.Test.Blog.unique_index/2)
     end
   end
 end

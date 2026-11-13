@@ -12,6 +12,8 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       field :from, atom(), enforce: true, derives: "validate(atom)"
       field :into, atom() | nil, default: nil, derives: "validate(optional=[atom])"
       field :skip_if_present?, boolean(), default: false, derives: "validate(boolean)"
+      field :unique_suffix, boolean(), default: false, derives: "validate(boolean)"
+      field :max_suffix, pos_integer(), default: 10, derives: "validate(integer, min_len=2)"
 
       field :language, atom() | String.t() | nil,
         default: nil,
@@ -77,6 +79,11 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       * `:skip_if_present?` - `boolean()`, default `false`. Leave the slug alone when the action
         already sets `:into`.
 
+      * `:unique_suffix` - `boolean()`, default `false`. When the slug is taken, save it as
+        `slug-2`, `slug-3` and so on. See "Unique suffix" below.
+
+      * `:max_suffix` - `pos_integer()`, default `10`. The highest suffix `:unique_suffix` tries.
+
       * `:language` - `atom() | String.t() | nil`, default `nil`. The text's language: an
         attribute or argument name read from the changeset (such as `:language`), or a fixed
         code.
@@ -100,6 +107,37 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
         A name is looked up in `config :mishka_slug, :presets`; `{module, function, args}` is
         called and returns the options. Options given next to `:preset` win over the preset's.
         An unknown name, or a preset that is not a keyword list, makes `init/1` return an error.
+
+    ## Unique suffix
+
+    With `unique_suffix: true` the action saves as usual, with no query of its own before it.
+    Only when the save fails because the slug is taken does it save again as `slug-2`, then
+    `slug-3`, up to `slug-<max_suffix>`, and the first save that is not refused for the slug wins.
+    When every suffix is taken the error of the first save is returned. A slug that needs a suffix
+    is cut by whole words so the suffix fits the `:max_length`.
+
+        identities do
+          identity :unique_slug, [:site_id, :slug]
+        end
+
+        change {MishkaSlug.Change, from: :title, into: :slug, unique_suffix: true}
+
+    "Taken" means a unique identity of the resource whose keys hold `:into` refused the save: the
+    `has already been taken` error of a unique index (AshPostgres) or of an identity's
+    `pre_check_with`/`eager_check_with` (data layers without unique indexes, such as ETS). Each try
+    costs one more write, and nothing else. A slug the action sets itself (`:skip_if_present?`) is
+    never suffixed.
+
+    It retries the whole transaction through `Ash.Changeset.around_transaction/2`, so:
+
+      * it works for `Ash.create/2`, `Ash.update/2` and the code interfaces that call them;
+      * an update action that uses it needs `require_atomic? false`: Ash cannot run the hook in an
+        atomic update and refuses the action with `Ash.Error.Framework.MustBeAtomic` otherwise;
+      * it does nothing in `Ash.bulk_create/4` and `Ash.bulk_update/4`, which do not run around
+        transaction hooks: a taken slug there is the usual error;
+      * inside a transaction someone else opened (an action called from another one), Postgres
+        aborts that transaction on the first unique error, so the retry fails with it. Run the
+        action in its own transaction to get the suffix.
     """
 
     use Ash.Resource.Change
@@ -109,7 +147,7 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
     alias MishkaSlug.Messages
     alias MishkaSlug.Options
 
-    @own_keys [:from, :into, :skip_if_present?, :language, :locales]
+    @own_keys [:from, :into, :skip_if_present?, :unique_suffix, :max_suffix, :language, :locales]
 
     @impl true
     def init(opts) when is_list(opts) do
@@ -129,8 +167,11 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
 
       with false <- opts[:skip_if_present?] and Changeset.changing_attribute?(changeset, into),
            {:ok, value} when is_binary(value) <- fetch(changeset, from),
-           {:ok, slug} <- MishkaSlug.slugify(value, slug_options(opts, changeset)) do
-        Changeset.force_change_attribute(changeset, into, slug)
+           slug_options = slug_options(opts, changeset),
+           {:ok, slug} <- MishkaSlug.slugify(value, slug_options) do
+        changeset
+        |> Changeset.force_change_attribute(into, slug)
+        |> unique_suffix(opts[:unique_suffix], {into, value, slug_options, opts[:max_suffix]})
       else
         {:ok, _value} ->
           Changeset.add_error(changeset, field: from, message: Messages.not_a_string())
@@ -170,11 +211,65 @@ if Code.ensure_loaded?(Ash.Resource.Change) do
       into = opts[:into] || opts[:from]
 
       opts
-      |> Keyword.drop([:from, :into, :skip_if_present?])
+      |> Keyword.drop([:from, :into, :skip_if_present?, :unique_suffix, :max_suffix])
       |> Keyword.put(:language, language(opts[:language], changeset))
       |> Keyword.put(:locales, locales(opts[:locales], changeset))
       |> Keyword.put(:max_length, opts[:max_length] || max_length(changeset.resource, into))
     end
+
+    defp unique_suffix(changeset, true, {into, _value, _slug_options, max_suffix} = slug) do
+      taken = taken_fields(changeset.resource, into)
+
+      Changeset.around_transaction(changeset, fn changeset, callback ->
+        first = callback.(changeset)
+
+        2..max_suffix//1
+        |> Enum.reduce_while(first, fn suffix, result ->
+          with true <- taken?(result, taken),
+               {:ok, suffixed} <- suffixed(slug, suffix) do
+            {:cont, callback.(Changeset.force_change_attribute(changeset, into, suffixed))}
+          else
+            _done -> {:halt, result}
+          end
+        end)
+        |> then(&if(taken?(&1, taken), do: first, else: &1))
+      end)
+    end
+
+    defp unique_suffix(changeset, _off, _slug), do: changeset
+
+    defp suffixed({_into, value, slug_options, _max_suffix}, suffix) do
+      suffix = "-#{suffix}"
+
+      slug_options =
+        case slug_options[:max_length] do
+          nil -> slug_options
+          max -> Keyword.put(slug_options, :max_length, max(max - byte_size(suffix), 1))
+        end
+
+      with {:ok, slug} <- MishkaSlug.slugify(value, slug_options), do: {:ok, slug <> suffix}
+    end
+
+    defp taken_fields(resource, into) do
+      for %{keys: keys} = identity <- Ash.Resource.Info.identities(resource),
+          into in keys,
+          do: identity.field_names || keys
+    end
+
+    defp taken?({:error, error}, taken) do
+      %{errors: errors} = Ash.Error.to_error_class(error)
+      Enum.any?(errors, &taken_error?(&1, taken))
+    end
+
+    defp taken?(_result, _taken), do: false
+
+    defp taken_error?(%Ash.Error.Changes.InvalidChanges{fields: fields}, taken),
+      do: fields in taken
+
+    defp taken_error?(%Ash.Error.Changes.InvalidAttribute{field: field} = error, taken),
+      do: error.private_vars[:constraint_type] == :unique and Enum.any?(taken, &(field in &1))
+
+    defp taken_error?(_error, _taken), do: false
 
     defp with_preset!(opts) do
       case with_preset(opts) do

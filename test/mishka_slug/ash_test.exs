@@ -122,4 +122,93 @@ defmodule MishkaSlug.AshTest do
       end
     end
   end
+
+  describe ":unique_suffix" do
+    alias MishkaSlug.Test.Blog.Tag
+
+    defp tag(action \\ :create, input), do: create(Tag, action, input)
+
+    defp taken?(%Ash.Error.Invalid{errors: errors}),
+      do: Enum.any?(errors, &match?(%Ash.Error.Changes.InvalidChanges{fields: [:slug]}, &1))
+
+    test "off, a taken slug is the identity's error" do
+      assert {:ok, %{slug: "elixir"}} = tag(:create_strict, %{name: "Elixir"})
+      assert {:error, error} = tag(:create_strict, %{name: "elixir!"})
+      assert taken?(error)
+    end
+
+    test "on, a taken slug is saved as slug-2, then slug-3" do
+      assert {:ok, %{slug: "elixir"}} = tag(%{name: "Elixir"})
+      assert {:ok, %{slug: "elixir-2"}} = tag(%{name: "Elixir"})
+      assert {:ok, %{slug: "elixir-3"}} = tag(%{name: "ELIXIR!"})
+    end
+
+    test "on, a Persian slug gets the same suffix" do
+      assert {:ok, %{slug: "سلام-دنیا"}} = tag(%{name: "سلام دنیا"})
+      assert {:ok, %{slug: "سلام-دنیا-2"}} = tag(%{name: "سلام دنیا"})
+    end
+
+    test "a unique index error, as AshPostgres returns it, gets the suffix too" do
+      alias MishkaSlug.Test.Blog.Label
+
+      assert {:ok, %{slug: "elixir"}} = create(Label, %{name: "Elixir"})
+      assert {:ok, %{slug: "elixir-2"}} = create(Label, %{name: "Elixir"})
+    end
+
+    test "the suffix fits the max_length by dropping whole words" do
+      assert {:ok, %{slug: "phoenix-live"}} = tag(%{name: "Phoenix Live"})
+      assert {:ok, %{slug: "phoenix-2"}} = tag(%{name: "Phoenix Live"})
+    end
+
+    test "when every suffix up to max_suffix is taken, the first error is returned" do
+      for slug <- ["ash", "ash-2", "ash-3"] do
+        assert {:ok, %{slug: ^slug}} = tag(:create_short, %{name: "Ash"})
+      end
+
+      assert {:error, error} = tag(:create_short, %{name: "Ash"})
+      assert taken?(error)
+      assert {:ok, [_, _, _]} = Ash.read(Tag)
+    end
+
+    test "an update that takes another tag's slug gets a suffix" do
+      assert {:ok, _elixir} = tag(%{name: "Elixir"})
+      assert {:ok, erlang} = tag(%{name: "Erlang"})
+
+      assert {:ok, %{slug: "elixir-2"}} = Ash.update(erlang, %{name: "Elixir"}, action: :update)
+    end
+
+    test "an update action that must be atomic refuses it, so it needs require_atomic? false" do
+      assert {:ok, page} = create(Page, %{title: "first"})
+
+      assert {:error, %Ash.Error.Framework{errors: [%Ash.Error.Framework.MustBeAtomic{} = error]}} =
+               Ash.update(page, %{title: "second"}, action: :update_unique)
+
+      assert error.reason =~ "around_transaction"
+    end
+
+    test "a slug the action sets itself is never suffixed" do
+      assert {:ok, _elixir} = tag(%{name: "Elixir"})
+      assert {:error, error} = tag(:create_with_slug, %{name: "Other", slug: "elixir"})
+      assert taken?(error)
+    end
+
+    test "an error that is not the slug's is returned as it is, without a retry" do
+      assert {:error, %Ash.Error.Invalid{errors: [error]}} = tag(%{name: "😀"})
+      assert error.field == :name
+    end
+
+    test "slug_options/2 leaves out the unique options" do
+      assert {:ok, opts} = MishkaSlug.Change.init(from: :name, unique_suffix: true, max_suffix: 5)
+      assert opts[:unique_suffix] and opts[:max_suffix] == 5
+
+      slug_options = MishkaSlug.Change.slug_options(opts, Ash.Changeset.new(Tag))
+      refute Keyword.has_key?(slug_options, :unique_suffix)
+      refute Keyword.has_key?(slug_options, :max_suffix)
+    end
+
+    test "max_suffix below 2 is an init error" do
+      assert {:error, message} = MishkaSlug.Change.init(from: :name, max_suffix: 1)
+      assert message =~ "max_suffix"
+    end
+  end
 end
