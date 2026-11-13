@@ -30,7 +30,7 @@
 ## 🚀 Getting started
 
 ```elixir
-{:mishka_slug, "~> 0.0.1"}
+{:mishka_slug, "~> 0.0.2"}
 ```
 
 ```elixir
@@ -131,7 +131,7 @@ These are always on, not options:
 - The text is NFKC-normalised first and the slug is NFC, so fullwidth letters, ligatures and Arabic presentation forms become their plain letters.
 - Arabic harakat, tatweel and Hebrew points are dropped as optional spelling. Every other mark is kept, because in Indic and Thai scripts the marks spell the word.
 
-Uniqueness and reserved words stay the job of the resource that stores the slug.
+Reserved words stay the job of the resource that stores the slug. Uniqueness is too, through a unique identity; `MishkaSlug.Change` can add a `-2`, `-3` suffix when that identity refuses a slug (see below).
 
 ## 🧱 In an Ash resource
 
@@ -152,6 +152,66 @@ end
 
 `language: :language` reads the record's language, and `locales:` takes a list or `{module, function, args}` called with the changeset first, so the site's languages can come from its tenant. A title with no slug is an error on `:title`; the slug is never set to `nil`. Without `:max_length` the `max_length` of the slug attribute is used.
 
+### The `MishkaSlug.Ash` extension
+
+The extension gives the change a shorter form. It is the same `MishkaSlug.Change`, so both forms make the same slug:
+
+```elixir
+use Ash.Resource, extensions: [MishkaSlug.Ash]
+
+actions do
+  create :create do
+    accept [:title, :language]
+    change slugify(:title, into: :slug, language: :language, locales: {MyApp.Sites, :languages, []})
+  end
+end
+```
+
+### Presets
+
+Options many resources share can live in one place, by name in the config or from a function:
+
+```elixir
+# config/config.exs
+config :mishka_slug,
+  presets: [
+    public: [from: :slug, into: :slug, locales: {MyApp.Sites, :languages, []}],
+    internal: [locales: ["en"], keep: [], digits: :ascii]
+  ]
+
+change slugify(:title, preset: :public)          # :from is :title, the rest from the preset
+change {MishkaSlug.Change, preset: :public}      # the tuple form takes it too
+change slugify(:name, preset: :internal, keep: ["_"])   # options beside it win
+change slugify(:title, preset: {MyApp.Slugs, :options, []})
+```
+
+An unknown preset name is an error when the change is initialised.
+
+### A suffix for a taken slug
+
+With `unique_suffix: true` a slug a unique identity refuses is saved as `slug-2`, then `slug-3`, up to `:max_suffix` (default `10`):
+
+```elixir
+identities do
+  identity :unique_slug, [:site_id, :slug]
+end
+
+actions do
+  create :create do
+    accept [:title]
+    change slugify(:title, into: :slug, unique_suffix: true)
+  end
+
+  update :update do
+    accept [:title]
+    require_atomic? false
+    change slugify(:title, into: :slug, unique_suffix: true)
+  end
+end
+```
+
+It is off by default and adds no query when it is on: the action saves as usual, and only a save refused by the slug's unique identity (a Postgres unique index, or an identity's `pre_check_with` on ETS) is tried again with the next suffix, one write per try. When every suffix is taken the first error is returned. It retries through `Ash.Changeset.around_transaction/2`, so an update action needs `require_atomic? false`, bulk actions do not suffix, and an action run inside a transaction someone else opened gets the first error (Postgres aborts that transaction on it).
+
 ## 🤖 Usage rules for AI agents
 
 The package ships [usage_rules](https://hexdocs.pm/usage_rules/) files (`usage-rules.md` and `usage-rules/`) so an agent knows the options, the return shapes and the do's and don'ts. Add `{:usage_rules, "~> 1.2", only: :dev}`, set `usage_rules: [file: "CLAUDE.md", usage_rules: [{:mishka_slug, sub_rules: ["ash", "configuration"]}]]` in `project/0`, and run `mix usage_rules.sync`.
@@ -164,7 +224,8 @@ lib/
 └── mishka_slug/
     ├── options.ex          the options schema, shared by slugify/2 and the change
     ├── scripts.ex          site languages to scripts, and one script per word
-    └── change.ex           the Ash change (compiled when Ash is present)
+    ├── change.ex           the Ash change (compiled when Ash is present)
+    └── ash.ex              the Ash extension with slugify/2 (compiled when Ash is present)
 usage-rules.md, usage-rules/ rules for AI agents (examples checked by a test)
 test/mishka_slug/           real titles per language, safety, options and the Ash change
 ```

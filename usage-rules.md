@@ -8,7 +8,7 @@ Mishka Slug makes URL slugs that keep the original script: Persian stays Persian
 
 ```elixir
 # mix.exs, in deps/0
-{:mishka_slug, "~> 0.0.1"}
+{:mishka_slug, "~> 0.0.2"}
 ```
 
 Ash is optional. `MishkaSlug.Change` is compiled only when the host app has Ash.
