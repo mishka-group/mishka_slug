@@ -61,7 +61,9 @@ defmodule MishkaSlug.Scripts do
   @known "[" <> Enum.map_join(@scripts, &"\\p{sc=#{Map.fetch!(@pcre_names, &1)}}") <> "]"
 
   # A mark of a script runs with a letter of that script; one that follows a letter of another
-  # script (Khudawadi `U+112E3` after `a`) starts the `:stray` group and is dropped.
+  # script (Khudawadi `U+112E3` after `a`) starts the `:stray` group and is dropped. A Common mark
+  # (Vedic `U+1CF7`) is neutral; after a dropped letter it went with that letter, so `join/2`
+  # drops it too and never leaves a word that starts with a mark.
   # A digit of a script (Persian `۱`, Devanagari `१`) is its own run, so it never joins a letter
   # run, and takes its inherited marks with it: `[^\\P{sc=X}\\p{Nd}]` is a letter of X,
   # `[^\\P{sc=X}\\P{Nd}]` a digit of X.
@@ -316,7 +318,13 @@ defmodule MishkaSlug.Scripts do
   defp block(script, :any), do: [script]
   defp block(script, allowed), do: if(script in allowed, do: [script], else: :blocked)
 
-  defp join({:neutral, text}, [{:blocked, _} | _] = acc), do: [{:neutral, text} | acc]
+  defp join({:neutral, text}, [{:blocked, _} | _] = acc) do
+    case String.replace(text, ~r/\A\p{M}+/u, "") do
+      "" -> acc
+      text -> [{:neutral, text} | acc]
+    end
+  end
+
   defp join({:neutral, text}, [{scripts, part} | rest]), do: [{scripts, part <> text} | rest]
   defp join({:blocked, text}, acc), do: [{:blocked, text} | acc]
   defp join({scripts, text}, [{:neutral, part} | rest]), do: [{scripts, part <> text} | rest]

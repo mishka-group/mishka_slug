@@ -14,6 +14,16 @@ defmodule MishkaSlug.OptionsTest do
       assert {:ok, "سلام-hello-привет-שלום"} = MishkaSlug.slugify(title)
     end
 
+    test "a Common mark after a dropped letter is dropped with it, never left alone" do
+      opts = [locales: ["he", "el", "fa"], keep: [".", "~"], digits: :ascii, latin: :keep]
+      opts = [zwnj: :separator, max_length: 4] ++ opts
+
+      assert {:error, :no_allowed_script} = MishkaSlug.slugify("\u{CF5D}\u{1CF7}", opts)
+      assert {:ok, "1"} = MishkaSlug.slugify("\u{CF5D}\u{1CF7}1", opts)
+      assert {:ok, "a\u{1CF7}"} = MishkaSlug.slugify("a\u{1CF7}", opts)
+      assert {:ok, "\u{CF5D}\u{1CF7}"} = MishkaSlug.slugify("\u{CF5D}\u{1CF7}", locales: [])
+    end
+
     test "a homoglyph outside the site's scripts is dropped, not kept inside the word" do
       assert {:ok, "p-ypal"} = MishkaSlug.slugify("p\u{0430}ypal", locales: ["en"])
     end

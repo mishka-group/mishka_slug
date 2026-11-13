@@ -6,6 +6,7 @@
 - `MishkaSlug.slugify/2` and the change take `:separator` (default `"-"`): what joins the words, in every script, so `"سلام دنیا"` with `"_"` gives `سلام_دنیا`. It is made of the URL-safe `-`, `.`, `_` and `~` only, and its characters are always word breaks, even when `:keep` lists them, so a slug slugs again to itself (`snake_case title` gives `snake_case_title`). A `zwnj: :separator` break gets it, `:max_length` counts it, and `unique_suffix` joins its number with it (`slug_2`)
 - `:truncate` is taken as ash_slug's name for `:max_length`, with the same whole-word cut; giving both is an invalid option. `MishkaSlug.Options.validate/1` returns it as `:max_length`, and in the change it wins over the attribute's `max_length` as `:max_length` does
 - `lowercase?: false` keeps the case of the letters as typed (`Hello World` gives `Hello-World`); scripts without case are the same either way. With `latin: :ascii` a spelled-out uppercase letter keeps its case (`Æ` gives `Ae`). So an ash_slug line, `change slugify(:title, into: :slug, separator: "_", truncate: 30, lowercase?: false)`, works as it is with `MishkaSlug.Ash`; `ignore` is not taken, `:keep` does that job
+- A Common combining mark (Vedic `U+1CF7`) after a letter that `:locales` drops is dropped with it. `"\u{CF5D}\u{1CF7}"` with `locales: ["fa"]` gave a slug of the mark alone, which slugged again to `{:error, :empty}`; it now gives `{:error, :no_allowed_script}`, and no word of a slug starts with a mark
 
 # Changelog for MishkaSlug 0.0.1
 
