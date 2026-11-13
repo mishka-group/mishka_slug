@@ -97,7 +97,10 @@ English and other Latin text, like WordPress:
 | `:latin` | `:ascii` | `:ascii` removes Latin accents like WordPress (`café` to `cafe`, `ß` to `s`, or `ss` with `language: "de"`); `:keep` leaves them as typed. Other scripts never change. |
 | `:keep` | `["_"]` | `.`, `_` or `~` kept inside a word, such as `snake_case` or `v1.2`. The list replaces the default: `[]` makes `_` a break, `[".", "_"]` keeps both. |
 | `:trim_kept` | `false` | `false` keeps `_`, `.` and `~` at a word's ends like WordPress (`__init__`, `my_post_`); `true` removes them (`init`, `my_post`). |
-| `:max_length` | `nil` | The longest slug in code points. Whole words while they fit; a long first word is cut between graphemes. |
+| `:separator` | `"-"` | What joins the words, in every script: `"_"` gives `سلام_دنیا`. Made of `-`, `.`, `_` and `~` only; its characters are always word breaks, even when `:keep` lists them. |
+| `:lowercase?` | `true` | `false` keeps the case as typed (`Hello-World`); scripts without case are the same either way. |
+| `:max_length` | `nil` | The longest slug in code points, separators included. Whole words while they fit; a long first word is cut between graphemes. |
+| `:truncate` | `nil` | ash_slug's name for `:max_length`, with the same cut. Give one of the two: both is an invalid option. |
 
 Options are checked by `MishkaSlug.Options` (a `guarded_struct`). An unknown option or a value outside the accepted ones raises `ArgumentError`.
 
@@ -166,6 +169,20 @@ actions do
   end
 end
 ```
+
+### Coming from ash_slug
+
+`MishkaSlug.Ash` takes the change line of an [ash_slug](https://hex.pm/packages/ash_slug) resource as it is: swap the extension and keep the actions.
+
+```elixir
+# before: use Ash.Resource, extensions: [AshSlug]
+use Ash.Resource, extensions: [MishkaSlug.Ash]
+
+change slugify(:title, into: :slug, separator: "_", truncate: 30, lowercase?: false)
+#=> "Hello, World!" is saved as "Hello_World"
+```
+
+`into`, `separator`, `truncate`, `lowercase?` and `skip_if_present?` mean what they mean in ash_slug. The differences: the slug keeps the title's script where ash_slug writes it in Latin letters (`سلام دنیا` stays `سلام-دنیا`); the separator is limited to the URL-safe `-`, `.`, `_` and `~`; `ignore` is not taken, `:keep` (`.`, `_`, `~`) does that job; and a title that gives no slug is an error, never an empty slug.
 
 ### Presets
 

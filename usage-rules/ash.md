@@ -33,6 +33,8 @@ use Ash.Resource, extensions: [MishkaSlug.Ash]
 change slugify(:title, into: :slug, language: :language, locales: {MyApp.Sites, :languages, []})
 ```
 
+An ash_slug change line works as it is: `change slugify(:title, into: :slug, separator: "_", truncate: 30, lowercase?: false)`. `ignore` is not taken; use `:keep`.
+
 ## Change options
 
 Every `MishkaSlug.slugify/2` option is accepted as it is. These are the change's own:
