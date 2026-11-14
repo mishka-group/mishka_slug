@@ -4,6 +4,7 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_dispatch:
 
 # A newer push to the same branch or pull request makes the run in progress pointless.
 concurrency:
@@ -14,115 +15,13 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  # setup-beam installs Hex from builds.hex.pm, and one slow response there failed a whole run
-  # ("Could not mix hex from any hex.pm mirror"). It tries these in order.
-  HEXPM_MIRRORS: |
-    https://builds.hex.pm
-    https://cdn.jsdelivr.net/hex
-
 jobs:
-  # Compiled once; the jobs below start from this build.
-  #
-  # A cache entry can never be changed once saved, so the key carries the commit: each run saves the
-  # build it made, and the next one starts from the nearest one before it (`restore-keys`) and
-  # compiles only what changed.
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: erlef/setup-beam@v1
-        with:
-          version-file: .tool-versions
-          version-type: strict
-          hexpm-mirrors: ${{ env.HEXPM_MIRRORS }}
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('.tool-versions', 'mix.lock') }}-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-mix-${{ hashFiles('.tool-versions', 'mix.lock') }}-
-
-      - run: mix deps.get
-
-      - run: MIX_ENV="test" mix compile --warnings-as-errors
-
-  # Beside the tests rather than in front of them.
-  format:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: erlef/setup-beam@v1
-        with:
-          version-file: .tool-versions
-          version-type: strict
-          hexpm-mirrors: ${{ env.HEXPM_MIRRORS }}
-
-      - uses: actions/cache/restore@v6
-        with:
-          path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('.tool-versions', 'mix.lock') }}-${{ github.sha }}
-          fail-on-cache-miss: true
-
-      # The formatter takes Ash's paren-free DSL calls in the test resource from the dependencies in
-      # .formatter.exs's import_deps, so it runs once they are fetched.
-      - run: MIX_ENV="test" mix format --check-formatted
-
-  # mix_audit checks mix.lock against the elixir-security-advisories database. It runs a task from a
-  # dependency, so it starts from the build like the format check. Hex's own audit is hex-audit.yml.
-  audit:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: erlef/setup-beam@v1
-        with:
-          version-file: .tool-versions
-          version-type: strict
-          hexpm-mirrors: ${{ env.HEXPM_MIRRORS }}
-
-      - uses: actions/cache/restore@v6
-        with:
-          path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('.tool-versions', 'mix.lock') }}-${{ github.sha }}
-          fail-on-cache-miss: true
-
-      - run: MIX_ENV="test" mix deps.audit
-
-  # The suite is pure and async: one machine, no database.
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: erlef/setup-beam@v1
-        with:
-          version-file: .tool-versions
-          version-type: strict
-          hexpm-mirrors: ${{ env.HEXPM_MIRRORS }}
-
-      - uses: actions/cache/restore@v6
-        with:
-          path: |
-            deps
-            _build
-          key: ${{ runner.os }}-mix-${{ hashFiles('.tool-versions', 'mix.lock') }}-${{ github.sha }}
-          fail-on-cache-miss: true
-
-      # --warnings-as-errors also fails on warnings in the test files.
-      - run: mix test --warnings-as-errors
+  ci:
+    # Switch to @ci-v1 once mishka-group/mishka_cms#77 is merged and tagged.
+    uses: mishka-group/mishka_cms/.github/workflows/mishka-ci.yml@ci-v1
+    with:
+      # The suite is pure and async: one machine, no database.
+      # This repository does not run Credo, Dialyzer or ExDNA in CI today.
+      credo: false
+      dialyzer: false
+      ex_dna: false
