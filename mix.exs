@@ -44,7 +44,7 @@ defmodule MishkaSlug.MixProject do
 
   defp deps do
     [
-      {:guarded_struct, "~> 0.1.9"},
+      {:guarded_struct, "~> 0.1.10"},
       {:gettext, "~> 1.0"},
       # Only for `MishkaSlug.Change` and `MishkaSlug.Ash`, which are compiled when the host has Ash.
       {:ash, "~> 3.37", optional: true},
