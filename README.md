@@ -30,7 +30,7 @@
 ## 🚀 Getting started
 
 ```elixir
-{:mishka_slug, "~> 0.0.2"}
+{:mishka_slug, "~> 0.0.3"}
 ```
 
 ```elixir
