@@ -1,3 +1,7 @@
+# Changelog for MishkaSlug 0.0.3
+
+- `guarded_struct` needs `~> 0.1.10`, and the lock is on the newest Hex releases: `ex_doc` 0.40.5 and `rewrite` 1.3.1 (dev only)
+
 # Changelog for MishkaSlug 0.0.2
 
 - `MishkaSlug.Ash` is an Ash extension that brings `slugify/2` into a resource's actions: `use Ash.Resource, extensions: [MishkaSlug.Ash]`, then `change slugify(:title, into: :slug, language: :language)`. It is the same change as `{MishkaSlug.Change, from: :title, into: :slug, language: :language}`, so code that reads an action's changes, and `MishkaSlug.Change.slug_options/2`, see a `MishkaSlug.Change` either way. It is compiled only when Ash is a dependency

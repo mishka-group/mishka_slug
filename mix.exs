@@ -5,7 +5,7 @@
 defmodule MishkaSlug.MixProject do
   use Mix.Project
 
-  @version "0.0.2"
+  @version "0.0.3"
   @source_url "https://github.com/mishka-group/mishka_slug"
 
   def project do
